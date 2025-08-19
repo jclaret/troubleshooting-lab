@@ -10,7 +10,7 @@
 ** xref:labs/lab-telco-rds.adoc#rds[OpenShift Telco RAN Reference Designi Specification]
 ** xref:labs/lab-ztp-workflow.adoc#ztp[OpenShift Deployments - ZTP Workflow]
 ** xref:labs/lab-gitops-sync.adoc#gitos[GitOps Operator - Sync Flows]
-** xref:labs/lab-performance-tuning.adoc#perfprofile[Node Tuning Operator - Performance Profile]
+** xref:labs/lab-performance-profile.adoc#perfprofile[Node Tuning Operator - Performance Profile]
 ** xref:labs/lab-rhcos-layering.adoc#layering[RHCOS Image Layering - Applying Hotfixes]
 ** xref:labs/lab-storage-odf.adoc#odf[Storage - OpenShift Data Foundation]
 ** xref:labs/lab-security-scc.adoc#scc[OpenShift Security - SCC Troubleshooting]
