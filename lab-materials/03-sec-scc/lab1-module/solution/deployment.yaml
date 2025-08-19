@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kernel-mod-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kernel-mod-app
+  template:
+    metadata:
+      labels:
+        app: kernel-mod-app
+    spec:
+      serviceAccountName: module-loader
+      containers:
+      - name: app
+        image: quay.io/jclaret/lab/module-app:latest
+        securityContext:
+          capabilities: 
+            add: ["SYS_MODULE"]
+          runAsUser: 0
+          seLinuxOptions:
+            type: spc_t
+

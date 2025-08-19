@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: odf-s3
+---
+# OBC (bucket A)
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: img-bucket-a
+  namespace: odf-s3
+spec:
+  generateBucketName: img-bucket-a
+  storageClassName: openshift-storage.noobaa.io
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: img-bucket-b
+  namespace: odf-s3
+spec:
+  generateBucketName: img-bucket-b
+  storageClassName: openshift-storage.noobaa.io
+---
+# App
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3-uploader
+  namespace: odf-s3
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: s3-uploader }
+  template:
+    metadata:
+      labels: { app: s3-uploader }
+    spec:
+      containers:
+        - name: web
+          image: quay.io/jclaret/lab/odf-s3:latest
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: img-bucket-a
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: img-bucket-a
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: img-bucket-b
+                  key: BUCKET_NAME
+            - name: S3_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: img-bucket-a
+                  key: BUCKET_HOST
+            - name: S3_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: img-bucket-a
+                  key: BUCKET_PORT
+            - name: S3_SCHEME
+              value: "https"
+            - name: S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: MAX_CONTENT_LENGTH_MB
+              value: "10"
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: s3-uploader
+  namespace: odf-s3
+spec:
+  selector:
+    app: s3-uploader
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: s3-uploader
+  namespace: odf-s3
+spec:
+  to:
+    kind: Service
+    name: s3-uploader
+  port:
+    targetPort: http

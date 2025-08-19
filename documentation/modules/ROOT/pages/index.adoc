@@ -1,20 +1,28 @@
-= Welcome to Template Tutorial
+= Openshift Troubleshotting Lab
 :page-layout: home
 :!sectids:
 
 [.text-center.strong]
-== Publish Services to Kubernetes
+== Introduction
 
-A Kubernetes tutorial to show how you can deploy a Java service to a Kubernetes cluster as it was a child game.
+Welcome to this lab focused on various troubleshooting scenarios designed to enhance your understanding and practical skills in OpenShift troubleshooting
 
-[.tiles.browse]
-== Browse modules
+Each scenario presented in this lab introduces essential concepts for understanding OpenShift and/or Openshift component fundamentals and developing practical troubleshooting skills. The second part involves hands-on scenarios where you will test your knowledge of OpenShift and its different components.
 
-[.tile]
-.xref:01-setup.adoc[Get Started]
-* xref:01-setup.adoc#minikube[Minikube]
+IMPORTANT: This is not an official Red Hat Training. Please, contact with your Red Hat representative if you want more information about Training or Guidelines about this topic / product.
 
-[.tile]
-.xref:02-deploy.adoc[Deploying]
-* xref:02-deploy.adoc#package[Package the Application]
-* xref:02-deploy.adoc#deploy[Deploy the Application]
+== Lab Environment
+
+This lab environment is based on a pre-configured infrastructure provided through the https://demo.redhat.com[Red Hat Demo Platform] - https://catalog.demo.redhat.com/catalog?item=babylon-catalog-prod/sandboxes-gpte.opp-hol.prod&utm_source=webapp&utm_medium=share-link[Hands-on lab with Red Hat OpenShift Platform Plus (2025)]. Please be aware that running this lab incurs costs and requires proper resource management.
+
+== Lab Duration and Timeline
+
+When you launch the lab, you will have 12 hours by default to complete all exercises before the environment is automatically destroyed. The estimated time breakdown is as follows:
+
+* Environment Provisioning: 2 hours
+* Hands-on Laboratory Work: 5 hours
+* Buffer Time: 5 hours (for troubleshooting, review, or additional practice)
+
+== Time Extension Options
+
+If you need additional time to complete the lab exercises, you can manually extend the session duration up to a maximum of 24 hours total. Plan accordingly to ensure you have sufficient time to complete all scenarios and save any necessary work or documentation

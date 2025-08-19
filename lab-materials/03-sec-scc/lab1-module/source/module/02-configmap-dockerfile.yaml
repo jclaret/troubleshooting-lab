@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: 23-module-build-dockerfile
+data:
+  dockerfile: |
+    ARG DTK_AUTO
+    FROM ${DTK_AUTO} as builder
+    ARG KERNEL_FULL_VERSION
+    WORKDIR /build/
+    RUN ["git", "clone", "http://registry.offline.lab:3000/redhat_lab/simple-kmod.git"]
+    WORKDIR /build/simple-kmod
+    RUN make all install KVER=${KERNEL_FULL_VERSION}
+    FROM registry.redhat.io/ubi9/ubi-minimal
+    ARG KERNEL_FULL_VERSION
+    RUN microdnf install kmod -y
+    COPY --from=builder /build/simple-kmod/simple-kmod.ko /opt/lib/modules/${KERNEL_FULL_VERSION}/
+    RUN depmod -b /opt ${KERNEL_FULL_VERSION}

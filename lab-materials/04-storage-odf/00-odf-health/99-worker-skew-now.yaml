@@ -1,0 +1,29 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 99-worker-skew-now
+  labels:
+    machineconfiguration.openshift.io/role: worker
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    systemd:
+      units:
+        - name: odf-skew-now.service
+          enabled: true
+          contents: |
+            [Unit]
+            Description=ODF lab: skew clock once (+5 min)
+            ConditionPathExists=!/etc/odf-lab/clock-skew.applied
+            After=network-online.target
+            Wants=network-online.target
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/bin/bash -lc 'mkdir -p /etc/odf-lab && date -s "+5 minutes" && touch /etc/odf-lab/clock-skew.applied'
+            RemainAfterExit=yes
+
+            [Install]
+            WantedBy=multi-user.target
+

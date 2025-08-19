@@ -1,0 +1,2 @@
+#!/bin/bash
+echo "ERROR: this is a bug"

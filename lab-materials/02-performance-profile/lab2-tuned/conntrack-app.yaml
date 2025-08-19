@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conntrack-app
+  labels:
+    app: conntrack-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conntrack-app
+  template:
+    metadata:
+      labels:
+        app: conntrack-app
+    spec:
+      containers:
+      - name: conntrack-app
+        image: quay.io/jclaret/lab/conntrack-app:latest
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conntrack-app
+spec:
+  selector:
+    app: conntrack-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000

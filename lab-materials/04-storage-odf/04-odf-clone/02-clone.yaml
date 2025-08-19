@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rbd-uploader-clone
+  namespace: odf-clone
+spec:
+  storageClassName: ocs-storagecluster-ceph-rbd
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+  dataSource:
+    name: rbd-uploader-pvc
+    kind: PersistentVolumeClaim
+    apiGroup: ""
+

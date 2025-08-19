@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: break-etcd
+  namespace: default
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - key: "node-role.kubernetes.io/master"
+    operator: "Exists"
+    effect: "NoSchedule"
+  hostPID: true
+  hostIPC: true
+  hostNetwork: true
+  containers:
+  - name: debug
+    #image: quay.io/quay/busybox:latest
+    image: registry.offline.lab:5000/lab/busybox:latest
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Esperando antes de matar etcd..."
+        sleep 10
+        echo "Buscando contenedor etcd..."
+        chroot /host crictl ps -a | grep etcd || echo "ETCD no encontrado"
+        ETCD_ID=$(chroot /host crictl ps -a | grep "etcd " | grep Running | awk '{print $1}')
+        if [ ! -z "$ETCD_ID" ]; then
+          echo "Parando etcd ($ETCD_ID)..."
+          chroot /host crictl stop "$ETCD_ID"
+          chroot /host /usr/bin/nc -lk -p 2379 -e /bin/false
+        fi
+        echo "Arrancando nc en 2379..."
+        chroot /host /usr/bin/nc -lk -p 2379 -e /bin/false
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: host
+      mountPath: /host
+  restartPolicy: Never
+  volumes:
+  - name: host
+    hostPath:
+      path: /

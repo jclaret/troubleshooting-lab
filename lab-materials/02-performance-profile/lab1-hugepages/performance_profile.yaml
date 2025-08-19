@@ -1,0 +1,18 @@
+apiVersion: performance.openshift.io/v2
+kind: PerformanceProfile
+metadata:
+  name: lab1-hugepages
+spec:
+  cpu:
+    isolated: 8-15
+    reserved: 0-7
+  hugepages:
+    defaultHugepagesSize: "1G"
+    pages:
+    - size: "1G"
+      count: 2
+      node: 0
+  realTimeKernel:
+    enabled: false
+  nodeSelector:
+    node-role.kubernetes.io/performance: "fix-me"

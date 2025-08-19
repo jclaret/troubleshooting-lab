@@ -1,0 +1,16 @@
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: scc-sysmodule
+allowPrivilegedContainer: false
+allowedCapabilities:
+- SYS_MODULE
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+fsGroup:
+  type: RunAsAny
+users:
+- system:serviceaccount:default:default
+

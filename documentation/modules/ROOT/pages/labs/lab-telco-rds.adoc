@@ -1,0 +1,246 @@
+= OpenShift Telco RAN Reference Design Specification
+include::../_attributes.adoc[]
+
+== Lab Overview
+
+This lab introduces the Telco RAN Reference Design Specification and demonstrates how to validate and enforce compliance using the cluster-compare plugin. You'll learn to detect configuration drift against telco-specific requirements and remediate misconfigurations to ensure optimal 5G workload performance.
+
+=== Learning Objectives
+
+By completing this lab, you will be able to:
+
+* Understand the Telco RAN DU Reference Design Specification requirements
+* Install and configure the cluster-compare plugin for compliance validation
+* Detect configuration drift against telco reference standards
+* Apply corrective configurations to achieve RDS compliance
+* Verify cluster compliance using automated validation tools
+
+=== Reference Documentation
+
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/telco-ran-du-ref-design-specs#telco-ref-design-overview_telco-ran-du[Telco RAN DU Reference Design Specifications]
+
+== Understanding Telco RAN Reference Design
+
+=== Diagnostic Steps: Telco RDS Overview
+
+The Telco RAN DU Reference Design Specification (RDS) defines the recommended configuration for OpenShift clusters hosting 5G Radio Access Network workloads on commodity hardware. This specification ensures:
+
+* *Reliable Performance*: Consistent, predictable behavior for real-time 5G workloads
+* *Tested Configurations*: Validated settings based on extensive field testing
+* *Supported Standards*: Red Hat-supported configurations for production deployments
+* *Optimized Resource Usage*: Efficient utilization of compute, memory, and network resources
+
+Key RDS components include:
+
+* *Machine Configuration*: Kernel parameters, systemd services, and OS-level tuning
+* *Performance Profiles*: CPU isolation, NUMA topology awareness, and real-time scheduling
+* *Network Configuration*: SR-IOV, DPDK, and high-performance networking
+* *Storage Optimization*: Local storage configuration and persistent volume management
+
+=== Information Gathering: Cluster-Compare Plugin Purpose
+
+The cluster-compare plugin is an OpenShift CLI tool that:
+
+* Compares cluster configuration against reference specifications
+* Reports configuration differences and compliance gaps
+* Suppresses expected variations using configurable validation rules
+* Provides actionable remediation guidance for non-compliant configurations
+
+== Exercise 1: Installing the Cluster-Compare Plugin
+
+=== Information Gathering: Plugin Installation Process
+
+Navigate to the lab exercise directory and install the cluster-compare plugin:
+
+[source,bash]
+----
+# Change to the telco RAN lab directory
+cd troubleshooting-lab/lab-materials/01-telco-rds
+
+# Create a container for the cluster-compare image
+podman create --name cca quay.io/jclaret/openshift4/kube-compare-artifacts-rhel9:latest
+
+# Copy the cluster-compare plugin to a directory in your PATH
+podman cp cca:/usr/share/openshift/linux_amd64/kube-compare.rhel9 kubectl-cluster_compare
+
+# Make the plugin executable and move to system PATH
+chmod +x kubectl-cluster_compare
+sudo mv kubectl-cluster_compare /usr/local/bin/kubectl-cluster_compare
+
+# Clean up the temporary container
+podman rm cca
+----
+
+=== Testing and Validation: Verify Plugin Installation
+
+Confirm the cluster-compare plugin is properly installed and accessible:
+
+[source,bash]
+----
+# Verify plugin installation and view available options
+oc cluster-compare -h
+----
+
+Expected output should display the plugin help information and available command options.
+
+== Exercise 2: Extracting Reference Configuration
+
+=== Information Gathering: Reference Bundle Extraction
+
+Extract the telco RAN reference configuration bundle for comparison:
+
+[source,bash]
+----
+# Pull the ZTP site generator image containing reference configurations
+podman pull quay.io/jclaret/openshift4/ztp-site-generate-rhel8:v4.18
+
+# Create output directory for extracted reference content
+mkdir -p ./out
+
+# Extract reference bundle from the container image
+podman run --log-driver=none --rm \
+  quay.io/jclaret/openshift4/ztp-site-generate-rhel8:v4.18 \
+  extract /home/ztp --tar | tar x -C ./out
+----
+
+This creates a directory structure `out/reference/...` containing the complete telco RAN reference configuration.
+
+=== Problem Definition: Creating Minimal Validation Scope
+
+For this lab exercise, we'll use a simplified metadata file focusing on essential configuration:
+
+[source,bash]
+----
+# Copy the simplified metadata file for lab exercise
+cp metadata_new.yaml out/reference/metadata_new.yaml
+
+# Review the metadata content
+cat out/reference/metadata_new.yaml
+----
+
+== Exercise 3: Detecting Configuration Drift
+
+=== Initial Compliance Assessment
+
+Run the cluster-compare plugin to identify configuration gaps against the RDS requirements:
+
+[source,bash]
+----
+# Execute compliance comparison against simplified metadata
+oc cluster-compare -r out/reference/metadata_new.yaml
+----
+
+=== Analysis Results
+
+The cluster-compare output will likely show non-compliant configurations, particularly missing kdump configurations required by the telco RAN specification. Common findings include:
+
+* Missing kdump MachineConfig for master nodes
+* Missing kdump MachineConfig for worker nodes  
+
+Example expected output:
+[source,console]
+----
+oc cluster-compare -r out/reference/metadata_new.yaml
+Summary
+CRs with diffs: 0/0
+CRs in reference missing from the cluster: 2
+required-machine-config:
+  machine-config:
+    Missing CRs:
+    - required/machine-config/kdump/06-kdump-master.yaml
+      Description:
+        https://docs.openshift.com/container-platform/4.18/scalability_and_performance/telco_ref_design_specs/ran/telco-ran-ref-du-components.html#telco-ran-machine-configuration_ran-ref-design-components
+    - required/machine-config/kdump/06-kdump-worker.yaml
+      Description:
+        https://docs.openshift.com/container-platform/4.18/scalability_and_performance/telco_ref_design_specs/ran/telco-ran-ref-du-components.html#telco-ran-machine-configuration_ran-ref-design-components
+No CRs are unmatched to reference CRs
+Metadata Hash: 325a28a44f8a057b472c54d479989514ad17251be45d4a628682bc770576a57e
+No patched CRs
+----
+
+== Exercise 4: Resolving Configuration Drift
+
+=== Investigation Challenge
+
+Before looking at the solution, spend 10-15 minutes investigating:
+
+1. **What is kdump and why is it required for telco RAN?**
+2. **Where might the required YAML files be located?**
+3. **How do MachineConfig resources work in OpenShift?**
+
+[TIP]
+====
+💡 **Hint**: Explore the extracted reference bundle structure. Look for directories containing manifest files or configuration examples.
+
+Try: `find out/source-crs/ -name "*kdump*" -type f`
+====
+
+=== Solution Implementation
+
+If you've completed your investigation or need guidance, here's the solution:
+
+[source,bash]
+----
+# Apply RDS configuration example
+oc apply -f ./out/source-crs/extra-manifest/06-kdump-master.yaml
+oc apply -f ./out/source-crs/extra-manifest/06-kdump-worker.yaml
+
+# Watch the rollout (20min aprox)
+oc get mcp master worker
+oc get mcp -w
+
+# Verify compliance (run after rollout completes)
+oc cluster-compare -r out/reference/metadata_new.yaml
+----
+
+==== Monitor Drain Progress
+[source,bash]
+----
+# Check which node is currently being drained
+oc get nodes
+
+# View detailed events for the problematic node
+oc describe node <node-name> | grep -A 20 Events
+
+# Check for pods blocking the drain
+oc logs -n openshift-machine-config-operator deployment/machine-config-controller -f
+
+# Delete blocking pods
+oc delete pod <pod_name> -n <namespace> --force
+
+# Change PDB minAvailable from 1 to  0 - HyperShift Hosted Cluster
+oc patch pdb etcd -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
+oc patch pdb kube-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
+oc patch pdb oauth-openshift -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
+oc patch pdb openshift-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
+oc patch pdb openshift-oauth-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
+----
+
+=== Verification and Documentation: Confirming Success
+
+Wait for all Machine Config Pools to show `UPDATED=True` and `UPDATING=False`, then verify complete compliance.
+
+Expected successful output:
+[source,console]
+----
+Summary
+CRs with diffs: 0/2
+No validation issues with the cluster
+No CRs are unmatched to reference CRs
+Metadata Hash: 325a28a44f8a057b472c54d479989514ad17251be45d4a628682bc770576a57e
+No patched CRs
+----
+
+== Lab Summary
+
+This lab demonstrated the critical importance of maintaining telco RAN RDS compliance for 5G workload reliability. Key achievements include:
+
+* Understanding telco-specific OpenShift configuration requirements
+* Installing and using the cluster-compare plugin for automated compliance validation
+* Detecting and remediating configuration drift using Machine Config resources
+* Verifying successful compliance remediation through automated testing
+
+== Additional Resources
+
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/telco-ran-du-ref-design-specs[Complete Telco RAN DU Reference Design Specification]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/scalability_and_performance/ztp-deploying-disconnected#ztp-the-cluster-validator-tool_ztp-deploying-disconnected[Cluster Validator Tool Documentation]

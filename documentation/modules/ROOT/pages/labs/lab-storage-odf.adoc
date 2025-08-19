@@ -1,0 +1,405 @@
+= Storage - OpenShift Data Foundation Troubleshooting
+include::../_attributes.adoc[]
+
+== Lab Overview
+
+This comprehensive lab covers troubleshooting OpenShift Data Foundation (ODF) across multiple scenarios including Ceph cluster health issues, capacity management, file storage problems, block storage misconfigurations, and S3 object storage connectivity issues. You'll learn to diagnose and resolve storage problems in OpenShift environments.
+
+=== Learning Objectives
+
+By completing this lab, you will be able to:
+
+* Understand ODF architecture and Ceph cluster components
+* Use ODF debugging tools including Ceph toolbox and must-gather
+* Diagnose and resolve Ceph cluster health issues
+* Troubleshoot storage capacity alerts and read-only conditions
+* Resolve file storage (CephFS) capacity and mounting issues
+* Fix block storage (RBD) multi-attach and access mode problems
+* Debug S3 object storage connectivity and authentication issues
+* Apply systematic troubleshooting methodology for storage problems
+
+=== Reference Documentation
+
+* link:https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.18/html/troubleshooting_openshift_data_foundation[Troubleshooting OpenShift Data Foundation]
+* link:https://docs.ceph.com/en/quincy/rados/troubleshooting/[Ceph Troubleshooting Guide]
+* link:https://role.rhu.redhat.com/rol-rhu/app/seminar/exps275-1[OpenShift Data Foundation Expert Session]
+
+== Understanding OpenShift Data Foundation
+
+=== Diagnostic Steps: ODF Architecture Overview
+
+OpenShift Data Foundation provides software-defined storage using Ceph as the underlying storage system. Key components include:
+
+* **Ceph Monitors (MONs)**: Maintain cluster maps and coordinate between components
+* **Object Storage Daemons (OSDs)**: Store data and handle replication/recovery
+* **Managers (MGRs)**: Track metrics and expose cluster information via REST API
+* **Metadata Servers (MDSes)**: Store metadata for CephFS file system operations
+* **RADOS Gateway (RGW)**: Provides S3-compatible object storage interface
+
+=== Information Gathering: ODF Component Status
+
+Check the overall status of ODF components:
+
+[source,bash]
+----
+# Check ODF operator status
+oc get csv -n openshift-storage | grep odf
+
+# View storage cluster status
+oc get storagecluster -n openshift-storage
+
+# Check Ceph cluster health
+oc get cephcluster -n openshift-storage
+
+# View all ODF pods
+oc get pods -n openshift-storage
+
+# Check ODF dashboard status
+oc get route -n openshift-storage
+----
+
+=== Key ODF Tools and Resources
+
+* **Ceph Toolbox**: Interactive pod for Ceph CLI commands
+* **Must-Gather**: Comprehensive diagnostic data collection
+* **ODF Console**: Web-based monitoring and management
+* **Storage Classes**: Defines storage types (block, file, object)
+* **Persistent Volume Claims**: Application storage requests
+
+== Exercise 1: Ceph Cluster Health Troubleshooting
+
+=== Problem Definition: Time Synchronization Issues
+
+This exercise simulates time synchronization problems that commonly affect Ceph clusters in real-world deployments.
+
+Navigate to the ODF troubleshooting lab:
+
+[source,bash]
+----
+# Change to the ODF troubleshooting lab directory
+cd troubleshooting-lab/lab-materials/04-storage-odf/lab1-ceph-health
+
+# Enable the Ceph toolbox for diagnostics
+oc patch storagecluster ocs-storagecluster -n openshift-storage --type json --patch '[{ "op": "replace", "path": "/spec/enableCephTools", "value": true }]'
+
+# Wait for toolbox deployment
+oc wait --for=condition=Available deployment/rook-ceph-tools -n openshift-storage --timeout=300s
+----
+
+=== Information Gathering: Baseline Ceph Health
+
+Establish baseline Ceph cluster health before introducing problems:
+
+[source,bash]
+----
+# Check Ceph cluster status using toolbox
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
+
+# Get detailed health information
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail
+
+# Check OSD tree and status
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph osd tree
+
+# View cluster capacity
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph df
+----
+
+=== Hypothesis Development: Introducing Time Sync Issues
+
+Deploy MachineConfig that disrupts time synchronization:
+
+[source,bash]
+----
+# Apply MachineConfig to prevent node disruption
+oc apply -f 00-mco-ndp-chrony.yaml
+
+# Apply problematic chrony configuration
+oc apply -f 99-worker-chrony-bad.yaml
+
+# Monitor MachineConfigPool rollout
+oc get mcp worker -w
+----
+
+=== Analysis and Documentation: Investigating Ceph Issues
+
+After the MachineConfig is applied, investigate resulting Ceph problems:
+
+[source,bash]
+----
+# Check Ceph cluster status for time-related warnings
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
+
+# Look for slow operations
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail
+
+# Check individual OSD status
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph osd stat
+
+# Examine monitor synchronization
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mon stat
+----
+
+Expected symptoms:
+- HEALTH_WARN status with slow ops
+- Clock skew warnings between nodes
+- Possible MON synchronization issues
+
+=== Investigation Challenge
+
+Spend 15-20 minutes investigating the time synchronization problem:
+
+1. **What warnings does `ceph status` show?**
+2. **How do you check time synchronization on OpenShift nodes?**
+3. **What services are responsible for time sync in RHCOS?**
+4. **How does time drift affect Ceph operations?**
+
+[TIP]
+====
+💡 **Hint**: The issue is related to chrony (NTP) configuration on worker nodes. Use `oc debug node` to check time synchronization status and chrony configuration.
+
+Key investigation commands:
+- `oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail`
+- `oc debug node/<worker-node> -- chroot /host systemctl status chronyd`
+- `oc debug node/<worker-node> -- chroot /host chronyc sources`
+====
+
+=== Solution Implementation: Fixing Time Synchronization
+
+Remove the problematic chrony configuration:
+
+[source,bash]
+----
+# Remove the bad chrony MachineConfig
+oc delete machineconfig 99-worker-chrony-bad
+
+# Monitor recovery
+oc get mcp worker -w
+
+# Wait for rollout to complete
+oc wait --for=condition=Updated mcp/worker --timeout=600s
+----
+
+=== Verification and Documentation: Confirming Recovery
+
+Verify Ceph cluster returns to healthy state:
+
+[source,bash]
+----
+# Check Ceph status after time sync recovery
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
+
+# Verify no more slow ops
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail
+
+# Confirm time synchronization on nodes
+WORKER_NODE=$(oc get nodes -l node-role.kubernetes.io/worker -o name | head -1 | cut -d'/' -f2)
+oc debug node/$WORKER_NODE -- chroot /host chronyc sources
+----
+
+== Exercise 2: File Storage (CephFS) Troubleshooting
+
+=== Problem Definition: CephFS Volume Issues
+
+Navigate to the file storage troubleshooting exercise:
+
+[source,bash]
+----
+cd troubleshooting-lab/lab-materials/04-storage-odf/02-odf-file
+
+# Deploy file storage application
+oc new-project odf-file
+oc apply -f file-app.yaml
+----
+
+=== Information Gathering: CephFS Application Analysis
+
+Monitor the file storage application:
+
+[source,bash]
+----
+# Check application deployment status
+oc get pods -n odf-file
+
+# Verify PVC binding
+oc get pvc -n odf-file
+
+# Check storage class
+oc describe storageclass ocs-storagecluster-cephfs
+
+# Test application functionality
+ROUTE=$(oc get route image-uploader -n odf-file -o jsonpath='{.spec.host}')
+curl http://$ROUTE/
+
+# Try to upload files through web interface
+echo "Try uploading files via the web interface at: http://$ROUTE/"
+----
+
+=== Investigation Challenge
+
+Investigate the file storage capacity issue:
+
+1. **What happens when CephFS volume reaches capacity?**
+2. **How do you expand a CephFS PVC?**
+3. **What is the relationship between CephFS and underlying Ceph storage?**
+
+=== Solution Implementation: Expanding File Storage
+
+Expand the PVC to resolve capacity issues:
+
+[source,bash]
+----
+# Expand the PVC
+oc patch pvc upload-data -n odf-file --type=merge -p '{
+  "spec": { "resources": { "requests": { "storage": "1Gi" } } }
+}'
+
+# Monitor resize completion
+oc describe pvc upload-data -n odf-file | grep -i resize
+
+# Verify application functionality
+oc rsh -n odf-file $POD df -h /data
+----
+
+== Exercise 3: Block Storage (RBD) Troubleshooting
+
+=== Problem Definition: Multi-Attach Issues
+
+Navigate to the block storage exercise:
+
+[source,bash]
+----
+cd troubleshooting-lab/lab-materials/04-storage-odf/03-odf-block
+
+# Deploy block storage application with intentional issue
+oc apply -f app-block.yaml
+----
+
+=== Information Gathering: RBD Multi-Attach Investigation
+
+Analyze the block storage deployment problem:
+
+[source,bash]
+----
+# Check pod status
+oc get pods -l app=rbd-hello -n odf-block -o wide
+
+# Examine PVC configuration
+oc get pvc -n odf-block
+oc describe pvc rbd-hello-pvc -n odf-block
+
+# Investigate pod scheduling issues
+oc describe pod -l app=rbd-hello -n odf-block | grep -A 10 Events
+----
+
+Expected issue: Multiple pods trying to attach the same RWO (ReadWriteOnce) volume.
+
+=== Investigation Challenge
+
+Investigate the block storage access mode issue:
+
+1. **Why can't multiple pods attach to the same RBD volume?**
+2. **What are the different access modes for persistent volumes?**
+3. **When would you use RWO vs RWX vs ROX?**
+
+=== Solution Implementation: Fixing Access Mode Issues
+
+Resolve the multi-attach problem:
+
+[source,bash]
+----
+# Scale deployment to single replica
+oc scale deployment/rbd-hello --replicas=1 -n odf-block
+
+# Verify single pod is running
+oc get pods -l app=rbd-hello -n odf-block
+
+# Test application functionality
+ROUTE=$(oc get route rbd-hello -n odf-block -o jsonpath='{.spec.host}')
+curl http://$ROUTE/
+----
+
+== Exercise 4: S3 Object Storage Troubleshooting
+
+=== Problem Definition: S3 Authentication Issues
+
+Navigate to the S3 troubleshooting exercise:
+
+[source,bash]
+----
+cd troubleshooting-lab/lab-materials/04-storage-odf/01-odf-s3
+
+# Deploy S3 application with configuration issues
+oc apply -f s3-app.yaml
+----
+
+=== Information Gathering: S3 Configuration Analysis
+
+Investigate S3 connectivity and authentication:
+
+[source,bash]
+----
+# Check ObjectBucketClaim status
+oc get obc -n odf-s3
+
+# Examine generated ConfigMap and Secret
+oc get cm img-bucket-a -n odf-s3 -o yaml
+oc get secret img-bucket-a -n odf-s3 -o yaml
+
+# Check application logs for S3 errors
+oc logs -l app=s3-uploader -n odf-s3
+
+# Check current environment configuration
+oc describe deployment s3-uploader -n odf-s3 | grep -A 20 Environment
+
+# Test S3 connectivity
+URL=$(oc get route s3-uploader -n odf-s3 -o jsonpath='{.spec.host}')
+curl http://$URL/
+----
+
+Expected error: Access Denied or authentication failures.
+
+=== Investigation Challenge
+
+Debug the S3 authentication problem:
+
+1. **How does ODF provision S3 buckets and credentials?**
+2. **What is the relationship between ObjectBucketClaim, ConfigMap, and Secret?**
+3. **How do you troubleshoot S3 authentication issues?**
+
+=== Solution Implementation: Fixing S3 Configuration
+
+Correct the S3 bucket configuration:
+
+[source,bash]
+----
+# Fix the ConfigMap reference in deployment
+oc patch deployment s3-uploader -n odf-s3 --type=json -p='[
+  {"op":"replace","path":"/spec/template/spec/containers/0/env/2/valueFrom/configMapKeyRef/name","value":"img-bucket-a"}
+]'
+
+# Restart deployment
+oc rollout restart deployment/s3-uploader -n odf-s3
+oc rollout status deployment/s3-uploader -n odf-s3
+
+# Test S3 functionality
+URL=$(oc get route s3-uploader -n odf-s3 -o jsonpath='{.spec.host}')
+curl http://$URL/
+----
+
+== Lab Summary
+
+This comprehensive ODF troubleshooting lab covered critical storage scenarios:
+
+* **Ceph Health**: Diagnosed and resolved time synchronization issues affecting cluster performance
+* **Capacity Management**: Monitored storage alerts and implemented capacity expansion procedures
+* **File Storage**: Resolved CephFS capacity issues through PVC expansion
+* **Block Storage**: Fixed RBD multi-attach problems by understanding access modes
+* **Object Storage**: Debugged S3 authentication and configuration mismatches
+
+== Additional Resources
+
+* link:https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.18[OpenShift Data Foundation Documentation]
+* link:https://docs.ceph.com/en/quincy/[Ceph Documentation]
+* link:https://access.redhat.com/documentation/en-us/red_hat_openshift_data_foundation/4.18/html/troubleshooting_openshift_data_foundation[ODF Troubleshooting Guide]
+* link:https://access.redhat.com/solutions/4502501[Red Hat Solutions for ODF Issues]

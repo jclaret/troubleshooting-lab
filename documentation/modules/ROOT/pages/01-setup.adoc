@@ -1,29 +1,258 @@
-= Setup
+= Environment Setup
 include::_attributes.adoc[]
 
-[#prerequisite]
-== Prerequisite CLI tools
+[#setup]
+== Lab Environment Components
 
-include::https://raw.githubusercontent.com/redhat-developer-demos/rhd-tutorial-common/master/prerequisites-kubernetes.adoc[]
+This OpenShift 4.18 lab environment comes with the following pre-installed components and their respective versions:
+
+=== Pre-installed Red Hat Components
+
+[cols="3,1,3", options="header"]
+|===
+|Component |Version |Purpose
+
+|Advanced Cluster Management for Kubernetes
+|2.13.3
+|Multi-cluster lifecycle management
+
+|Advanced Cluster Security for Kubernetes
+|4.7.5
+|Container and Kubernetes security
+
+|OpenShift Data Foundation
+|4.18.7-rhodf
+|Software-defined storage solution
+
+|Red Hat OpenShift GitOps
+|1.15.3
+|GitOps-based application delivery
+
+|Red Hat Quay
+|3.13.7
+|Container registry and image security
+
+|Multicluster Engine for Kubernetes
+|2.8.2
+|Multi-cluster infrastructure management
 |===
 
-include::https://raw.githubusercontent.com/redhat-developer-demos/rhd-tutorial-common/master/optional-requisites.adoc[]
-|===
+=== Environment Details
 
-[#minikube]
-== Setup Kubernetes
+* *Base Platform*: OpenShift Container Platform 4.18
+* *Component Status*: All components are pre-configured and ready for use
+* *Integration*: Components are integrated and tested for compatibility
+* *Access*: Full administrative access to all installed components
 
-:profile: my_profile
+[#bastion]
+== Accessing the OpenShift Lab Environment
 
-include::https://raw.githubusercontent.com/redhat-developer-demos/rhd-tutorial-common/master/kubernetes-setup.adoc[]
+To begin working with the lab environment, you need to establish connectivity to your OpenShift cluster through the bastion host. Follow these steps to connect and verify your cluster access.
 
-And then you are ready for start using Kubernetes:
+=== Step 1: Connect to the Bastion Host
 
-image::kubelogo.png[]
+First, establish an SSH connection to your assigned bastion host using your unique lab identifier:
 
-[#downloadtutorial]
-== Get tutorial sources
+[source,bash]
+----
+# SSH into the bastion host (replace <guid> with your actual lab GUID)
+ssh demo-user@bastion.<guid>.<sandbox>.opentlc.com
+----
 
-:tutorial-url: https://github.com/redhat-developer-demos/rhd-tutorial-common.git
-:folder: my_folder
-include::https://raw.githubusercontent.com/redhat-developer-demos/rhd-tutorial-common/master/download-sources.adoc[]
+[IMPORTANT]
+====
+Replace `<guid>` with the specific identifier provided in your lab.
+Replace `<sandbox>` with the specific identifier provided in your lab.
+====
+
+=== Step 2: Authenticate with OpenShift
+
+Once connected to the bastion host, authenticate with the OpenShift cluster API:
+
+[source,bash]
+----
+# Login to the OpenShift API endpoint (replace <guid.guid> with your cluster URL)
+oc login https://api.cluster-<guid>.<sandbox>.opentlc.com:6443 \
+  --username=kubeadmin \
+  --password=<your-kubeadmin-password>
+----
+
+[NOTE]
+====
+The kubeadmin password is typically provided in your lab provisioning details.
+====
+
+=== Step 3: Verify Cluster Connectivity
+
+Confirm that your OpenShift cluster is operational and accessible by checking the node status:
+
+[source,bash]
+----
+# Verify cluster nodes are ready and responsive
+oc get nodes
+----
+
+*Expected Output*: You should see a similar node configuration:
+
+[source,console]
+----
+NAME                          STATUS   ROLES                  AGE   VERSION
+ip-10-0-54-169.ec2.internal   Ready    control-plane,master   25h   v1.31.10
+ip-10-0-39-122.ec2.internal   Ready    control-plane,master   25h   v1.31.10
+ip-10-0-40-228.ec2.internal   Ready    control-plane,master   25h   v1.31.10
+ip-10-0-41-193.ec2.internal   Ready    worker                 25h   v1.31.10
+ip-10-0-50-174.ec2.internal   Ready    worker                 25h   v1.31.10
+ip-10-0-51-124.ec2.internal   Ready    worker                 25h   v1.31.10
+ip-10-0-58-191.ec2.internal   Ready    worker                 25h   v1.31.10
+----
+
+=== Cluster Architecture Overview
+
+Your lab environment consists of:
+
+* *3 Control Plane Nodes*: Managing cluster operations and API services
+* *4 Worker Nodes*: Running application workloads and lab exercises  
+* *High Availability Configuration*: Ensuring cluster resilience during troubleshooting scenarios
+
+=== Troubleshooting Connection Issues
+
+If you encounter connectivity problems:
+
+. Verify your lab GUID is correct in both SSH and oc login commands
+. Ensure your lab environment is still active (check remaining time)
+. Confirm the kubeadmin password matches your lab credentials
+. Check network connectivity from your local machine to the bastion host
+
+[#aws]
+== AWS Console Access Setup
+
+To access the AWS console for your OpenShift cluster infrastructure, you'll need to configure secure credential management using the aws-vault tool. This section guides you through the installation and configuration process.
+
+=== Installing aws-vault Tool
+
+The aws-vault tool provides secure storage and management of AWS credentials, eliminating the need to store plaintext credentials on your system.
+
+==== Step 1: Download and Install aws-vault
+
+[source,bash]
+----
+# Download the latest aws-vault binary for Linux
+sudo curl -L https://github.com/99designs/aws-vault/releases/latest/download/aws-vault-linux-amd64 -o /usr/local/bin/aws-vault
+
+# Make the binary executable
+sudo chmod +x /usr/local/bin/aws-vault
+----
+
+==== Step 2: Add Your Lab AWS Credentials
+
+Configure aws-vault with your lab-specific AWS credentials using the secure file backend:
+
+[source,bash]
+----
+# Create a new AWS profile with file-based credential storage
+aws-vault add lab-profile --backend=file
+----
+
+*Interactive Prompts*: You'll be asked to provide:
+
+[source,console]
+----
+Enter Access Key ID: *******************
+Enter Secret Access Key: ****************************************
+Enter passphrase to unlock "/home/demo-user/.awsvault/keys/": (redhat)
+Added credentials to profile "lab-profile" in vault
+----
+
+[NOTE]
+====
+The passphrase `redhat` is used for this lab environment. In production, use a strong, unique passphrase.
+====
+
+==== Step 3: Verify Credential Storage
+
+Confirm that your credentials are properly stored and accessible:
+
+[source,bash]
+----
+# List all stored AWS profiles and their status
+aws-vault list --backend=file
+----
+
+*Expected Output*:
+
+[source,console]
+----
+Profile                  Credentials              Sessions                 
+=======                  ===========              ========                 
+lab-profile              lab-profile              -                        
+----
+
+=== AWS Region Configuration
+
+==== Step 4: Determine Your Cluster's AWS Region
+
+Use OpenShift to identify the AWS region where your cluster is deployed:
+
+[source,bash]
+----
+# Query the cluster infrastructure for AWS region information
+oc get infrastructure cluster -o jsonpath='{.status.platformStatus.aws.region}{"\n"}'
+----
+
+*Example Output*: `us-east-1`
+
+==== Step 5: Configure AWS CLI Region
+
+Set the appropriate AWS region for your lab profile:
+
+[source,bash]
+----
+# Configure the AWS region for your lab profile
+aws configure set region us-east-1 --profile lab-profile
+----
+
+=== Accessing AWS Console
+
+==== Step 6: Generate Console Login URL
+
+Create a secure login URL for accessing the AWS Management Console:
+
+[source,bash]
+----
+# Generate AWS console login URL with temporary credentials
+aws-vault login lab-profile --backend=file --stdout
+----
+
+*Interactive Prompt*:
+
+[source,console]
+----
+Enter passphrase to unlock "/home/demo-user/.awsvault/keys/": (redhat)
+----
+
+*Output*: A secure HTTPS URL that provides direct access to the AWS Console with your lab credentials.
+
+From the AWS console, go to Compute > EC2 to view the created instances.
+
+[#git]
+== Hands-on Lab Git Repository
+
+To access all the lab exercises, documentation, and supporting files, you'll need to clone the dedicated Git repository to your bastion host. This repository contains all the necessary resources for completing the troubleshooting scenarios.
+
+=== Cloning the Lab Repository
+
+Once you're connected to your bastion host, clone the hands-on lab repository:
+
+[source,bash]
+----
+git clone https://github.com/jclaret/troubleshooting-lab.git
+cd troubleshooting-lab/lab-materials
+----
+
+=== Repository Contents
+
+After cloning, you'll have access to:
+
+* *Exercise Templates*: Starting points for hands-on scenarios
+* *Lab Configuration Files*: YAML manifests and configuration
+* *Documentation*: Additional reference materials and troubleshooting guides

@@ -1,0 +1,18 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 99-worker-chrony-bad
+  labels:
+    machineconfiguration.openshift.io/role: worker
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: /etc/chrony.conf
+          mode: 0644
+          overwrite: true
+          contents:
+            source: data:text/plain;charset=utf-8;base64,IyBMYWI6IGJyb2tlbiBjaHJvbnkKc2VydmVyIDE5Mi4wLjIuMSBpYnVyc3QKbWFrZXN0ZXAgMCAwCmRyaWZ0ZmlsZSAvdmFyL2xpYi9jaHJvbnkvZHJpZnQKcnRjc3luYwo=
+

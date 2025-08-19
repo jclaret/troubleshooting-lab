@@ -1,0 +1,14 @@
+ARG rhel_coreos_release
+FROM ${rhel_coreos_release}
+
+# Set working directory
+WORKDIR /rpms
+
+# Copy RPM files from the build context
+COPY rpmbuild/RPMS/x86_64/ethtool-99.0-1.el9.x86_64.rpm /rpms/
+
+# Install hotfix rpm - https://issues.redhat.com/browse/RHEL-67324
+RUN rpm-ostree cliwrap install-to-root / && \ 
+    rpm-ostree override replace --cache-only /rpms/ethtool-99.0-1.el9.x86_64.rpm && \
+    rpm-ostree cleanup -m && \
+    ostree container commit

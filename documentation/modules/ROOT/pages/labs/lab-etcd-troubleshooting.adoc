@@ -1,0 +1,276 @@
+= OpenShift Control Plane - ETCD Troubleshooting
+include::../_attributes.adoc[]
+
+== Lab Overview
+
+This lab focuses on troubleshooting etcd cluster issues in OpenShift, covering scenarios where etcd components fail or become unavailable. You'll learn to diagnose etcd-related problems, understand the impact on cluster operations, and apply appropriate remediation techniques to restore etcd functionality.
+
+=== Learning Objectives
+
+By completing this lab, you will be able to:
+
+* Understand etcd's role in OpenShift cluster operations
+* Diagnose etcd cluster health and connectivity issues
+* Identify etcd static pod failures and port conflicts
+* Use etcd debugging tools and commands effectively
+* Restore etcd functionality after service disruptions
+* Analyze cluster operator degradation related to etcd issues
+
+=== Reference Documentation
+
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/backup_and_restore/troubleshooting-backup-and-restore[Troubleshooting backup and restore]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/backup_and_restore/control_plane_backup_and_restore[Control plane backup and restore]
+* link:https://etcd.io/docs/v3.5/op-guide/maintenance/[etcd Maintenance Guide]
+
+== Understanding etcd in OpenShift
+
+=== Diagnostic Steps: etcd Architecture and Role
+
+etcd is the key-value store that backs OpenShift's control plane, storing:
+
+* **Cluster Configuration**: Node definitions, network policies, RBAC rules
+* **API Objects**: Pods, Services, Deployments, and all Kubernetes resources
+* **Cluster State**: Current status of all cluster components
+* **Authentication Data**: User sessions and service account tokens
+* **Operational Data**: Events, logs metadata, and audit information
+
+=== Information Gathering: etcd Components in OpenShift
+
+OpenShift deploys etcd as static pods on control plane nodes:
+
+[source,bash]
+----
+# Check etcd cluster operator status
+oc get clusteroperator etcd
+
+# View etcd static pods
+oc get pods -n openshift-etcd | grep etcd
+
+# Check etcd endpoints and member status
+oc get endpoints -n openshift-etcd etcd
+
+# Examine etcd configuration
+oc describe configmap etcd-endpoints -n openshift-etcd
+----
+
+=== Key etcd Components
+
+* **etcd Static Pods**: Run on each control plane node as static pods
+* **etcd-operator**: Manages etcd cluster lifecycle and configuration
+* **etcd-guard**: Monitors etcd health and handles recovery scenarios
+* **etcd Certificates**: TLS certificates for secure etcd communication
+* **etcd Data Store**: Persistent storage for cluster state data
+
+[IMPORTANT]
+====
+**etcd Quorum Requirements**:
+- 3-node cluster: Tolerates 1 node failure (quorum = 2)
+- Loss of quorum results in cluster read-only mode or complete failure
+====
+
+== Exercise 1: Understanding Normal etcd Operations
+
+=== Information Gathering: Baseline etcd Health
+
+Before introducing problems, establish baseline etcd health:
+
+[source,bash]
+----
+# Check overall cluster operator status
+oc get co etcd
+
+# Examine etcd operator detailed status
+oc describe co etcd
+
+# List all etcd-related pods
+oc get pods -n openshift-etcd -o wide
+
+# Check etcd member status
+oc rsh -n openshift-etcd etcd-$(oc get nodes -l node-role.kubernetes.io/master -o name | head -1 | cut -d'/' -f2) etcdctl member list -w table
+
+# Verify etcd connectivity
+oc rsh -n openshift-etcd etcd-$(oc get nodes -l node-role.kubernetes.io/master -o name | head -1 | cut -d'/' -f2) etcdctl endpoint health
+----
+
+== Exercise 2: Simulating etcd Service Disruption
+
+=== Problem Definition: Deploying the Disruptive Pod
+
+Navigate to the etcd troubleshooting lab directory and deploy the problematic configuration:
+
+[source,bash]
+----
+# Change to the etcd troubleshooting lab directory
+cd troubleshooting-lab/lab-materials/06-etcd
+
+# Deploy the pod that will disrupt etcd service
+oc apply -f pod.yaml >/dev/null 2>&1
+
+# Monitor cluster operator status immediately
+watch oc get co etcd
+----
+
+[WARNING]
+====
+**Lab Safety Notice**: This lab deliberately creates a critical cluster issue. Only perform this in a dedicated lab environment, never in production or shared development clusters.
+====
+
+=== Information Gathering: Observing the Impact
+
+Monitor the cluster's response to the etcd disruption:
+
+[source,bash]
+----
+# Watch etcd cluster operator status (should start degrading)
+oc get co etcd -w
+
+# Check etcd pod status
+oc get pods -n openshift-etcd
+
+# Look for specific control plane node affected
+oc get nodes -l node-role.kubernetes.io/master
+
+# Check which master node is running the disruptive pod
+oc get pod break-etcd -o wide
+----
+
+== Exercise 3: Diagnosing etcd Issues
+
+=== Investigation Challenge
+
+Spend 20-25 minutes investigating the etcd failure:
+
+1. **What specific symptoms indicate etcd problems?**
+2. **Which control plane node is affected?**
+3. **Why can't etcd restart automatically?**
+4. **What is the impact on cluster operations?**
+
+[TIP]
+====
+💡 **Hint**: The issue involves port conflict on the etcd client port (2379). Look for:
+- etcd cluster operator showing degraded status
+- etcd static pods failing to start
+- Port 2379 being occupied by another process
+- Network connectivity issues to etcd endpoints
+
+Key investigation commands:
+- `oc describe co etcd`
+- `oc get pods -n openshift-etcd`
+- `oc describe pod break-etcd`
+- `oc logs -n openshift-etcd <etcd-pod>`
+====
+
+=== Analysis and Documentation: Deep Dive Investigation
+
+Investigate the problem systematically:
+
+[source,bash]
+----
+# Check etcd cluster operator detailed status
+oc describe co etcd
+
+# Look for error conditions and messages
+oc get co etcd -o yaml | grep -A 10 -B 5 -i error
+
+# Check etcd operator logs
+oc logs -n openshift-etcd-operator deployment/etcd-operator
+
+# Identify the affected control plane node
+AFFECTED_NODE=$(oc get pod break-etcd -o jsonpath='{.spec.nodeName}')
+echo "Affected node: $AFFECTED_NODE"
+
+# Check etcd static pod status on the affected node
+oc get pods -n openshift-etcd | grep $AFFECTED_NODE
+
+# Examine specific etcd pod logs if available
+oc logs -n openshift-etcd etcd-$AFFECTED_NODE --previous || echo "No previous logs available"
+
+# Check for port conflicts using debug pod
+oc debug node/$AFFECTED_NODE -- chroot /host netstat -tulpn | grep 2379
+----
+
+=== Advanced Diagnosis: etcd-specific Troubleshooting
+
+Use specialized etcd debugging techniques:
+
+[source,bash]
+----
+# Check etcd member list from a healthy node
+HEALTHY_NODE=$(oc get pods -n openshift-etcd -o custom-columns=NODE:.spec.nodeName,STATUS:.status.phase | grep Running | head -1 | awk '{print $1}')
+
+if [ -n "$HEALTHY_NODE" ]; then
+    echo "Checking etcd cluster from healthy node: $HEALTHY_NODE"
+    oc rsh -n openshift-etcd etcd-$HEALTHY_NODE etcdctl member list -w table
+    oc rsh -n openshift-etcd etcd-$HEALTHY_NODE etcdctl endpoint health --cluster
+fi
+
+# Check etcd data directory and permissions
+oc debug node/$AFFECTED_NODE -- chroot /host ls -la /var/lib/etcd/
+
+# Look for etcd process conflicts
+oc debug node/$AFFECTED_NODE -- chroot /host ps aux | grep etcd
+
+# Check for networking issues
+oc debug node/$AFFECTED_NODE -- chroot /host ss -tlnp | grep 2379
+----
+
+== Exercise 4: Restoring etcd Functionality
+
+=== Solution Implementation: Removing the Disruption
+
+Apply the fix to restore etcd functionality:
+
+[source,bash]
+----
+# Execute the fix script (or manual steps)
+./solution/fix.bash
+
+# Alternative manual steps:
+# 1. Delete the disruptive pod
+oc delete pod break-etcd -n default
+
+# 2. If etcd static pods are stuck, force delete them
+AFFECTED_NODE=$(oc get nodes -l node-role.kubernetes.io/master -o name | head -1 | cut -d'/' -f2)
+oc delete pod -n openshift-etcd etcd-$AFFECTED_NODE --force --grace-period=0
+
+# 3. If etcd-guard pod exists and is problematic, remove it
+oc delete pod -n openshift-etcd etcd-guard-$AFFECTED_NODE --force --grace-period=0 || echo "No etcd-guard pod to delete"
+----
+
+=== Testing and Validation: Monitoring Recovery
+
+Monitor the etcd recovery process:
+
+[source,bash]
+----
+# Watch etcd cluster operator status during recovery
+watch oc get co etcd
+
+# Monitor etcd pod restart
+oc get pods -n openshift-etcd -w
+
+# Check when all etcd pods are running
+oc get pods -n openshift-etcd | grep etcd-
+
+# Verify etcd cluster health after recovery
+sleep 60  # Wait for pods to stabilize
+oc rsh -n openshift-etcd etcd-$(oc get nodes -l node-role.kubernetes.io/master -o name | head -1 | cut -d'/' -f2) \
+  etcdctl endpoint health --cluster
+----
+
+== Lab Summary
+
+This lab demonstrated critical etcd troubleshooting skills for OpenShift control plane management:
+
+* **Service Disruption**: Simulated realistic etcd service failure through port conflicts
+* **Impact Analysis**: Observed how etcd issues affect cluster operator status and functionality
+* **Systematic Diagnosis**: Applied structured troubleshooting methodology to identify root causes
+* **Recovery Procedures**: Restored etcd functionality through proper cleanup and restart procedures
+* **Health Monitoring**: Implemented ongoing monitoring techniques for etcd cluster health
+
+== Additional Resources
+
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/backup_and_restore/control_plane_backup_and_restore[etcd Backup and Restore]
+* link:https://etcd.io/docs/v3.5/op-guide/recovery/[etcd Disaster Recovery]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/support/troubleshooting-operating-system-issues#troubleshooting-etcd-issues_troubleshooting-operating-system-issues[Troubleshooting etcd Issues]
+* link:https://etcd.io/docs/v3.5/op-guide/monitoring/[etcd Monitoring Guide]

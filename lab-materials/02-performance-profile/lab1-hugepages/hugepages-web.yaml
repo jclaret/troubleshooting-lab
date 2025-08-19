@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hugepages-web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hugepages-web
+  namespace: hugepages-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: hugepages-web }
+  template:
+    metadata:
+      labels: { app: hugepages-web }
+    spec:
+      containers:
+        - name: web
+          image: quay.io/jclaret/lab/hugepages-web:latest
+          env:
+            # Expose requests/limits via env for display
+            - name: REQUESTS_HUGEPAGES_1GI
+              valueFrom:
+                resourceFieldRef:
+                  containerName: web
+                  resource: requests.hugepages-1Gi
+                  divisor: "1Gi"
+            - name: LIMITS_HUGEPAGES_1GI
+              valueFrom:
+                resourceFieldRef:
+                  containerName: web
+                  resource: limits.hugepages-1Gi
+                  divisor: "1Gi"
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          volumeMounts:
+            - name: hugepage
+              mountPath: /dev/hugepages
+            - name: podinfo
+              mountPath: /etc/podinfo
+              readOnly: true
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+              hugepages-1Gi: "2Gi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+              hugepages-1Gi: "2Gi"
+      volumes:
+        - name: hugepage
+          emptyDir:
+            medium: HugePages
+        - name: podinfo
+          downwardAPI:
+            items:
+              - path: hugepages_1G_request
+                resourceFieldRef:
+                  containerName: web
+                  resource: requests.hugepages-1Gi
+                  divisor: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hugepages-web
+  namespace: hugepages-web
+spec:
+  selector: { app: hugepages-web }
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: hugepages-web
+  namespace: hugepages-web
+spec:
+  to:
+    kind: Service
+    name: hugepages-web
+  port:
+    targetPort: http

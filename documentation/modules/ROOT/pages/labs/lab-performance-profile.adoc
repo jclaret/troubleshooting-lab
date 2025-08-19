@@ -1,0 +1,340 @@
+= Node Tuning Operator - Performance Profile Troubleshooting
+include::../_attributes.adoc[]
+
+== Lab Overview
+
+This lab focuses on troubleshooting Performance Profile configurations in OpenShift, covering common issues encountered when deploying latency-sensitive workloads that require CPU isolation, huge pages, and kernel parameter tuning. You'll learn to diagnose and resolve Performance Profile misconfigurations that prevent applications from starting correctly.
+
+=== Learning Objectives
+
+By completing this lab, you will be able to:
+
+* Understand Performance Profile components and their purpose
+* Create and configure Performance Profiles using the Performance Profile Creator
+* Diagnose Performance Profile application failures
+* Resolve Machine Config Pool selector mismatches
+* Troubleshoot kernel parameter tuning with custom Tuned profiles
+* Debug huge pages allocation and availability issues
+
+=== Reference Documentation
+
+* link:https://github.com/openshift/cluster-node-tuning-operator/blob/main/docs/performanceprofile/troubleshooting.md[Performance Profile Troubleshooting Guide]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/scalability_and_performance/cnf-tuning-low-latency-nodes-with-perf-profile[CNF Tuning Low Latency Nodes with Performance Profile]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/scalability_and_performance/cnf-tuning-low-latency-nodes-with-perf-profile#cnf-telco-ran-reference-design-performance-profile-template_cnf-low-latency-perf-profile[Telco RAN DU Reference Design Performance Profile]
+* link:https://access.redhat.com/solutions/5532341[Performance Addons Operator Advanced Configuration]
+
+== Understanding Performance Profiles
+
+=== Diagnostic Steps: Performance Profile Components
+
+Performance Profiles are a high-level abstraction that configures OpenShift nodes for latency-sensitive workloads. Key components include:
+
+* **CPU Management**: Isolated vs reserved CPU cores for application and system workloads
+* **Huge Pages**: Large memory pages to reduce TLB (Translation Lookaside Buffer) misses
+* **Real-time Kernel**: Optional real-time kernel for deterministic latency
+* **NUMA Topology**: Non-Uniform Memory Access configuration for memory locality
+* **Kernel Parameters**: Low-level system tuning for performance optimization
+
+=== Information Gathering: Performance Profile Architecture
+
+The Performance Profile creates several OpenShift resources automatically:
+
+* **KubeletConfig**: Configures kubelet for CPU management and topology policies
+* **MachineConfig**: Applies kernel parameters and system-level configurations  
+* **Tuned Profile**: System-level tuning through the Node Tuning Operator
+* **RuntimeClass**: Optional container runtime configuration for real-time workloads
+
+
+=== Performance Profile Troubleshooting commands
+
+After applying a Performance Profile, verify its status:
+
+[source,bash]
+----
+# Check Performance Profile status
+oc get performanceprofile
+oc get performanceprofiles.performance.openshift.io -o yaml
+
+# Verify generated Tuned profiles
+oc get profiles.tuned.openshift.io -A
+oc get profile -n openshift-cluster-node-tuning-operator
+
+# Check related MachineConfig and MachineConfigPool status
+oc get mc,mcp,nodes -o wide
+
+# Verify huge pages configuration on nodes
+oc debug node/<node-name> -- chroot /host cat /proc/meminfo | grep -i huge
+oc debug node/<node-name> -- chroot /host cat /sys/kernel/mm/transparent_hugepage/enabled
+----
+
+== Exercise 1: Troubleshooting Huge Pages Application Failure
+
+=== Problem Definition: Application Stuck in Pending State
+
+Navigate to the first lab scenario:
+
+[source,bash]
+----
+# Change to the performance profile lab directory
+cd ~/troubleshooting-lab/lab-materials/02-performance-profile/lab1-hugepages
+
+# Review the provided files
+ls -la
+# Expected files:
+# - performance_profile.yaml (Performance Profile with incorrect MCP selector)
+# - hugepages-web.yaml (Application requiring huge pages)
+----
+
+=== Information Gathering: Initial Problem Analysis
+
+Deploy the initial problematic configuration:
+
+[source,bash]
+----
+# Scale up 1 nodes (5min)
+oc scale machinesets.machine.openshift.io cluster-kcjvr-v8ng6-worker-us-east-1c -n openshift-machine-api --replicas=5
+oc get machines.machine.openshift.io -n openshift-machine-api
+oc get nodes
+
+# Deploy the huge pages application
+oc new-project hugepages-web
+oc apply -f hugepages-web.yaml
+
+# Check application status
+oc get pods -n hugepages-web
+oc describe pod -n hugepages-web
+
+# Apply the Performance Profile with incorrect configuration
+oc apply -f performance_profile.yaml
+
+# Check Performance Profile status
+oc get performanceprofile lab1-hugepages -o yaml
+----
+
+=== Investigation Challenge
+
+Before looking at the solution, spend 10-20 minutes investigating:
+
+1. **What is the relationship between Performance Profiles and Machine Config Pools?**
+2. **Why is the Performance Profile not being applied to nodes?**
+3. **What node labels are required for the Performance Profile to work?**
+4. **How do you create a new Machine Config Pool for performance nodes?**
+
+[TIP]
+====
+💡 **Hint**: Check the `nodeSelector` in the Performance Profile and compare it with existing node labels. The Performance Profile needs nodes with matching labels AND a corresponding Machine Config Pool. Use the last provisioned node to solve this exercise, don't use current MCPs.
+
+Key commands to investigate:
+- `oc describe performanceprofile example-performanceprofile`
+- `oc get nodes --show-labels`
+- `oc get mcp`
+====
+
+=== Solution Implementation: Fixing the Configuration
+
+If you've completed your investigation, here's the solution:
+
+[source,bash]
+----
+# Create a new Machine Config Pool and update Performance Profile
+cd solution
+oc apply -f machine_config_pool.yaml
+oc apply -f performance_profile.yaml
+
+# Label a worker node for the new MCP
+NODE=$(oc get nodes -l node-role.kubernetes.io/worker --sort-by=.metadata.creationTimestamp | tail -1 | awk '{print $1}')
+echo "Selected node: $NODE"
+
+# Remove worker label and add new-mcp label
+oc label node "$NODE" node-role.kubernetes.io/mcp-hugepages="" --overwrite
+
+# Verify node labeling
+oc get node "$NODE" --show-labels | grep mcp-hugepages
+
+# Step 3: Wait for Performance Profile to be applied
+oc get performanceprofile lab1-hugepages
+
+# Step 4: Monitor MachineConfigPool rollout
+oc get mcp mcp-hugepages -w
+----
+
+=== Verification and Documentation: Confirming Success
+
+Verify that the huge pages application now starts successfully:
+
+[source,bash]
+----
+# Verify application is now running
+oc get pods -n hugepages-web
+oc rollout status deployment/hugepages-web -n hugepages-web
+
+# Access the application to verify huge pages configuration
+oc get route hugepages-web -n hugepages-web -o jsonpath='{.spec.host}{"\n"}'
+# curl http://<route-url> or open in browser
+----
+
+== Exercise 3: Troubleshooting Kernel Parameter Tuning
+
+=== Problem Definition: Application Requiring Custom Kernel Parameters
+
+Navigate to the second lab scenario:
+
+[source,bash]
+----
+# Change to the second performance profile lab directory
+cd ~/troubleshooting-lab/lab-materials/02-performance-profile/lab2-tuned
+
+# Review the provided files
+ls -la
+# Expected files:
+# - conntrack-app.yaml (Application requiring custom kernel.pid_max)
+# - machine_config_pool.yaml (New machine config pool)
+# - performance_profile.yaml (New Performace Profile)
+# - tuned.yaml (Tuned profile)
+----
+
+=== Information Gathering: Deploying the Second Scenario
+
+Deploy the application that requires custom kernel parameters:
+
+[source,bash]
+----
+# Scale up 1 nodes (5min)
+oc scale machinesets.machine.openshift.io cluster-kcjvr-v8ng6-worker-us-east-1c -n openshift-machine-api --replicas=6
+oc get machines.machine.openshift.io -n openshift-machine-api
+oc get nodes
+
+# Label a worker node for the new MCP
+NODE=$(oc get nodes -l node-role.kubernetes.io/worker --sort-by=.metadata.creationTimestamp | tail -1 | awk '{print $1}')
+echo "Selected node: $NODE"
+
+# Remove worker label and add new-mcp label
+oc label node "$NODE" node-role.kubernetes.io/mcp-conntrack="" --overwrite
+
+# Verify node labeling
+oc get node "$NODE" --show-labels | grep mcp-conntrack
+
+# Create a new Machine Config Pool and update Performance Profile
+oc apply -f machine_config_pool.yaml
+oc apply -f performance_profile.yaml
+oc apply -f tuned.yaml
+
+# Monitor MachineConfigPool rollout
+oc get mcp mcp-conntrack
+oc get nodes
+
+# Wait for Performance Profile to be applied
+oc get performanceprofile lab2-conntrack
+
+# Deploy the conntrack application
+oc new-project conntrack-app
+oc apply -f conntrack-app.yaml
+
+# Check application status
+oc get pods -n conntrack-app
+oc describe pod -n conntrack-app
+oc logs deployment/conntrack-app -n conntrack-app
+----
+
+The application will fail with an error indicating incorrect `kernel.pid_max` value.
+
+=== Investigation Challenge
+
+Spend time investigating the Tuned profile degradation:
+
+1. **Why is the Tuned profile showing as DEGRADED?**
+2. **What syntax errors exist in the Tuned configuration?**
+3. **How do custom Tuned profiles inherit from Performance Profile base configurations?**
+
+[TIP]
+====
+💡 **Hint**: Look for invalid parameter values or syntax errors in the Tuned profile. The profile should inherit from the Performance Profile base configuration and override specific parameters.
+
+Check the events and conditions in the Tuned profile status.
+====
+
+=== Solution Implementation: Fixing the Tuned Profile
+
+Apply the corrected Tuned profile:
+
+[source,bash]
+----
+# Remove the broken Tuned profile
+oc solution
+oc apply -f tuned.yaml
+
+# Monitor profile application
+oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
+
+# Wait for profile to show as APPLIED=True, DEGRADED=False
+oc get profile <node-profile-name> -n openshift-cluster-node-tuning-operator -w
+----
+
+=== Verification and Documentation: Confirming Kernel Parameter Changes
+
+Verify that the kernel parameter is correctly applied:
+
+[source,bash]
+----
+# Check updated kernel.pid_max value
+oc debug node/$NODE -- chroot /host sysctl kernel.pid_max
+
+# Restart the application to pick up new kernel parameters
+oc rollout restart deployment/conntrack-app -n conntrack-app
+oc rollout status deployment/conntrack-app -n conntrack-app
+
+# Verify application now starts successfully
+oc get pods -n conntrack-app
+oc logs deployment/conntrack-app -n conntrack-app
+
+# Test application functionality
+oc get route conntrack-app -n conntrack-app -o jsonpath='{.spec.host}{"\n"}'
+# curl http://<route-url> should return success
+----
+
+== Lab Summary
+
+This lab demonstrated critical troubleshooting skills for Performance Profile configurations:
+
+* **MCP Selector Issues**: Resolved Performance Profile not applying due to missing Machine Config Pool
+* **Node Labeling**: Correctly labeled nodes for custom Machine Config Pools
+* **Tuned Profile Debugging**: Identified and fixed syntax errors in custom Tuned configurations
+* **Kernel Parameter Tuning**: Applied custom kernel parameters through Tuned profiles
+* **Application Dependencies**: Understood how applications depend on system-level performance configurations
+
+=== Key Takeaways
+
+* **Systematic Diagnosis**: Always check Performance Profile status, MCP configuration, and node labels
+* **Layered Configuration**: Performance Profiles generate multiple resources (MachineConfig, KubeletConfig, Tuned)
+* **Custom Tuning**: Advanced configurations require custom Tuned profiles that inherit from base configurations
+* **Validation Process**: Verify both system-level changes and application functionality after applying fixes
+
+=== Common Issues and Solutions
+
+[cols="2,3,3", options="header"]
+|===
+|Issue |Symptoms |Solution
+
+|Performance Profile not applied
+|`GettingMachineConfigPoolFailed` error
+|Create matching MCP and label nodes correctly
+
+|Tuned profile degraded
+|`APPLIED=False, DEGRADED=True`
+|Fix syntax errors in Tuned configuration
+
+|Application pending
+|Pod stuck in Pending, resource not available
+|Verify Performance Profile is applied and resources allocated
+
+|Huge pages unavailable
+|HugePages allocation fails
+|Check Performance Profile huge pages configuration and node resources
+|===
+
+== Additional Resources
+
+* link:https://github.com/openshift/cluster-node-tuning-operator/blob/main/cmd/performance-profile-creator/README.md[Performance Profile Creator Documentation]
+* link:https://github.com/openshift/cluster-node-tuning-operator/blob/main/examples/performanceprofile/samples/performance_v2_performanceprofile.yaml[Performance Profile Examples]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed[HugePages Documentation]
+* link:https://access.redhat.com/solutions/7120569[OpenShift Node Conntrack Table Limitations]

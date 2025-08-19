@@ -1,0 +1,100 @@
+= Troubleshooting Exercises
+include::_attributes.adoc[]
+
+[#labs]
+== Introduction
+
+This section presents a comprehensive collection of hands-on troubleshooting scenarios designed to enhance your OpenShift expertise. These exercises simulate real-world challenges that OpenShift administrators and platform engineers encounter in production environments.
+
+The troubleshooting exercises are organized into the following specialized areas:
+
+* *OpenShift Resources and Tools*: Essential commands and diagnostic utilities
+* *OpenShift Monitoring*: Prometheus, Grafana, and alerting troubleshooting
+* *OpenShift Telco RAN Reference Design*: 5G telecommunications-specific configurations
+* *OpenShift Deployments - ZTP Workflow*: Zero Touch Provisioning and ACM troubleshooting
+* *GitOps Operator - Sync Flows*: ArgoCD and application synchronization issues
+* *Node Tuning Operator - Performance Profiles*: Performance Profiles troubleshooting
+* *RHCOS Image Layering*: Applying hotfixes and custom configurations
+* *Storage - OpenShift Data Foundation*: Persistent volume and Ceph troubleshooting
+* *OpenShift Security*: Security Context Constraints and application permissions
+* *OpenShift Control Plane - ETCD*: Etcd cluster troubleshooting
+
+== Troubleshooting Strategy: Using the Scientific Method
+
+Effective troubleshooting requires a systematic approach that eliminates guesswork and ensures reproducible results. Throughout these labs, we'll apply a structured methodology based on the scientific method adapted for IT troubleshooting scenarios.
+
+=== Troubleshooting Process
+
+==== 1. Information Gathering
+*Objective*: Collect comprehensive data about the problem environment
+
+* Gather symptoms and error messages from multiple sources
+* Document system configurations and recent changes  
+* Identify affected components and their relationships
+* Establish timeline of events leading to the issue
+* Collect relevant logs, metrics, and diagnostic outputs
+
+==== 2. Problem Definition
+*Objective*: Create a precise and measurable problem statement
+
+* Define what is working versus what is not working
+* Establish clear success criteria for resolution
+* Identify the scope and impact of the issue
+* Document expected behavior versus observed behavior
+* Determine if this is a new problem or recurring issue
+
+==== 3. Hypothesis Development
+*Objective*: Formulate logical theories based on collected evidence
+
+* Analyze gathered data to identify potential root causes
+* Prioritize hypotheses based on likelihood and impact
+* Consider multiple possible explanations for observed symptoms
+* Reference known issues and common failure patterns
+* Ensure hypotheses are testable and measurable
+
+==== 4. Hypothesis Testing
+*Objective*: Systematically validate or eliminate each theory
+
+* Design specific tests to prove or disprove each hypothesis
+* Execute tests in a controlled manner to avoid additional issues
+* Use non-disruptive diagnostic commands when possible
+* Test one variable at a time to isolate cause and effect
+* Document test procedures for reproducibility
+
+==== 5. Analysis and Documentation
+*Objective*: Evaluate test results and refine understanding
+
+* Record all test outcomes, both positive and negative results
+* Analyze patterns and correlations in the data
+* Refine hypotheses based on new evidence
+* Document lessons learned and knowledge gained
+* Maintain detailed troubleshooting logs for future reference
+
+==== 6. Solution Implementation and Verification
+*Objective*: Apply fixes and confirm complete resolution
+
+* Implement the most appropriate solution based on analysis
+* Apply changes incrementally and monitor impact
+* Verify that the original problem is completely resolved
+* Confirm that the fix doesn't introduce new issues
+* Document the final solution and prevention measures
+
+=== Benefits of This Approach
+
+* *Reduces Resolution Time*: Systematic approach prevents unnecessary trial-and-error
+* *Improves Accuracy*: Evidence-based decisions lead to correct solutions
+* *Builds Knowledge*: Documented process creates reusable troubleshooting procedures
+* *Minimizes Risk*: Controlled testing prevents additional system disruption
+* *Enhances Skills*: Methodical practice develops expert-level troubleshooting abilities
+
+== Lab Structure
+
+Each troubleshooting scenario in this course implements the six-step methodology:
+
+. *Diagnostic Steps*: Documentation and essential concepts for understanding OpenShift components
+. *Information Gathering*: Collecting relevant data about the problem environment
+. *Problem Definition*: Creating accurate problem statements with clear success criteria
+. *Hypothesis Development*: Formulating testable theories based on evidence
+. *Testing and Validation*: Systematically testing each hypothesis with measurable outcomes
+. *Solution Implementation*: Applying appropriate fixes based on validated analysis
+. *Verification and Documentation*: Confirming resolution and recording lessons learned

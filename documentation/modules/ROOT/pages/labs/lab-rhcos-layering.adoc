@@ -1,0 +1,245 @@
+= RHCOS Image Layering - Applying Hotfixes
+include::../_attributes.adoc[]
+
+== Lab Overview
+
+This lab introduces Red Hat Enterprise Linux CoreOS (RHCOS) Image Layering (now called "Image Mode" in OpenShift 4.19+) for applying hotfixes or testing kernels. You'll learn to identify package-related issues, understand when image layering is appropriate, and apply hotfixes using pre-built layered images.
+
+=== Learning Objectives
+
+By completing this lab, you will be able to:
+
+* Understand RHCOS Image Layering/Image Mode concepts and use cases
+* Identify when package issues require hotfixes versus standard updates
+* Deploy layered images using MachineConfig resources
+* Troubleshoot network driver issues caused by buggy package versions
+* Apply and verify hotfix deployment using image layering
+* Monitor MachineConfigPool rollouts for layered image changes
+
+=== Reference Documentation
+
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/machine_configuration/mco-coreos-layering[RHCOS Image Layering Documentation]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/machine_configuration/index#mco-coreos-layering[Image Mode for OpenShift (4.19+)]
+* link:https://github.com/openshift/rhcos-image-layering-examples[RHCOS Image Layering Examples]
+
+== Understanding RHCOS Image Layering
+
+=== Diagnostic Steps: Image Layering Concepts
+
+RHCOS Image Layering (Image Mode) allows you to create custom RHCOS images with additional packages or package updates without modifying the base CoreOS image. This is particularly useful for:
+
+* **Security Hotfixes**: Applying critical security updates before official RHCOS releases
+* **Driver Updates**: Installing updated network or storage drivers for hardware compatibility
+* **Custom Tools**: Adding diagnostic or monitoring tools required for specific environments
+* **Bug Fixes**: Resolving specific package bugs that affect cluster functionality
+
+=== Key Components
+
+* **Base RHCOS Image**: The standard CoreOS image for your OpenShift version
+* **Layered Image**: Custom image with additional/updated packages
+* **rpm-ostree**: Underlying technology for package layering
+* **MachineConfig**: Resource that references the layered image
+* **Image Registry**: Storage location for custom layered images
+
+[IMPORTANT]
+====
+**Terminology Change in OpenShift 4.19+**:
+- "RHCOS Image Layering" → "Image Mode for OpenShift" 
+- "On-cluster layering" → "On-cluster image mode"
+- "Out-of-cluster layering" → "Out-of-cluster image mode"
+====
+
+== Understanding Image Layering Architecture
+
+=== Information Gathering: Examining the Layered Image Components
+
+Explore how the hotfix image was constructed:
+
+[source,bash]
+----
+# Check the applied MachineConfig to see the image reference
+oc get mc 99-ethtool-fix -o yaml
+
+# Examine the image URL structure
+echo "Hotfix image: registry.offline.lab:5000/lab/ethtool-6.2-1.el9.x86_64:4.16.30"
+echo "Format: [registry]/[namespace]/[package-version]:[ocp-version]"
+
+# View the source files used to build the layered image
+ls -la source/
+cat source/Containerfile_fix
+----
+
+=== Analysis and Documentation: Image Layering Process
+
+Understanding the build process helps troubleshoot future issues:
+
+[source,bash]
+----
+# Review the Containerfile structure for the hotfix
+echo "=== Hotfix Containerfile Structure ==="
+cat source/Containerfile_fix
+
+echo ""
+echo "=== Key Image Layering Commands ==="
+echo "1. rpm-ostree cliwrap install-to-root /"
+echo "2. rpm-ostree override replace --cache-only [rpm-file]"
+echo "3. rpm-ostree cleanup -m"
+echo "4. ostree container commit"
+
+# Check available RPM versions in the lab
+ls -la source/rpm/
+----
+
+=== Advanced Verification: rpm-ostree Status Analysis
+
+[source,bash]
+----
+# Detailed rpm-ostree status showing layering information
+oc debug node/$NODE -- chroot /host rpm-ostree status --verbose
+
+# Check which packages have been overridden
+oc debug node/$NODE -- chroot /host rpm-ostree db list --local
+
+# Verify package integrity and signatures
+oc debug node/$NODE -- chroot /host rpm -V ethtool
+----
+
+== Exercise 1: Identifying the Package Issue
+
+=== Problem Definition: Network Driver Investigation
+
+Navigate to the image layering lab directory and deploy the problematic configuration:
+
+[source,bash]
+----
+# Change to the RHCOS image layering lab directory
+cd troubleshooting-lab/lab-materials/05-os-layering
+
+# Apply the MachineConfig with the buggy ethtool package
+oc apply -f machine-config-ethtool-worker.yaml
+
+# Monitor the MachineConfigPool rollout
+oc get mcp new-hugepages -w
+----
+
+=== Information Gathering: Investigating Network Configuration
+
+After the MachineConfig rollout completes, investigate the network driver configuration:
+
+[source,bash]
+----
+# Find the node that received the layered image
+NODE=$(oc get nodes -l node-role.kubernetes.io/mcp-hugepages -o name | head -1 | cut -d'/' -f2)
+echo "Investigating node: $NODE"
+
+# Check the current ethtool version on the node
+oc debug node/$NODE -- chroot /host rpm -q ethtool
+
+# Check network interface configuration
+oc debug node/$NODE -- chroot /host ip link show
+
+# Attempt to use ethtool to check network driver details
+oc debug node/$NODE -- chroot /host ethtool -i $(ip route | grep default | awk '{print $5}' | head -1)
+----
+
+=== Discovering the Bug
+
+The ethtool command should fail or show unexpected behavior. Investigate further:
+
+=== Analysis and Documentation: Understanding the Issue
+
+The investigation should reveal that ethtool version 99.0-1.el9 has a critical bug that prevents proper network interface management. This simulates a real-world scenario where a package update introduces regressions.
+
+== Exercise 2: Applying the Hotfix with Image Layering
+
+=== Investigation Challenge
+
+Before applying the solution, spend 15-20 minutes investigating:
+
+1. **What is the current ethtool version causing issues?**
+2. **How does RHCOS Image Layering help resolve package-specific bugs?**
+3. **What are the components needed to deploy a layered image?**
+4. **How do you verify that a layered image has been applied successfully?**
+
+[TIP]
+====
+💡 **Hint**: The issue is with ethtool version 99.0-1.el9 which contains a critical bug. A hotfix image has been pre-built with ethtool version 6.2-1.el9 that resolves the issue.
+
+Check the current layered image URL in the applied MachineConfig and look for a solution image with the corrected version.
+
+Key investigation commands:
+- `oc get mc 99-ethtool-bug -o yaml | grep osImageURL`
+- `oc debug node/$NODE -- chroot /host rpm -q ethtool`
+- Look in the solution/ directory for the corrected MachineConfig
+====
+
+=== Solution Implementation: Deploying the Hotfix Image
+
+If you've completed your investigation, apply the hotfix:
+
+[source,bash]
+----
+# Apply the hotfix MachineConfig with the corrected ethtool version
+oc apply -f solution/machine-config-nmanager-fix-worker.yaml
+
+# Monitor the MachineConfigPool rollout for the fix
+oc get mcp mcp-hugepages -w
+----
+
+=== Testing and Validation: Monitoring the Rollout
+
+Monitor the hotfix deployment process:
+
+[source,bash]
+----
+# Watch the MachineConfigPool status during rollout
+watch 'oc get mcp mcp-hugepages; echo; oc get nodes -l node-role.kubernetes.io/mcp-hugepages'
+
+# Check Machine rollout events
+oc get events --sort-by=.lastTimestamp | grep -E "Machine|Config"
+
+# Monitor node reboot and update process
+oc get nodes -l node-role.kubernetes.io/mcp-hugepages -o custom-columns="NAME:.metadata.name,STATUS:.status.conditions[?(@.type=='Ready')].status,VERSION:.status.nodeInfo.osImage"
+----
+
+=== Verification and Documentation: Confirming the Fix
+
+After the rollout completes, verify the hotfix was applied successfully:
+
+[source,bash]
+----
+# Verify the corrected ethtool version is installed
+oc debug node/$NODE -- chroot /host rpm -q ethtool
+
+# Expected output: ethtool-6.2-1.el9.x86_64
+
+# Test ethtool functionality with the fixed version
+oc debug node/$NODE -- chroot /host ethtool --version
+
+# Verify network interface operations work correctly
+INTERFACE=$(oc debug node/$NODE -- chroot /host ip route | grep default | awk '{print $5}' | head -1)
+echo "Testing interface: $INTERFACE"
+oc debug node/$NODE -- chroot /host ethtool -i $INTERFACE
+
+# Check that network statistics are now accessible
+oc debug node/$NODE -- chroot /host ethtool -S $INTERFACE | head -10
+
+# Verify the layered image is properly applied
+oc debug node/$NODE -- chroot /host rpm-ostree status
+----
+
+== Lab Summary
+
+This lab demonstrated the practical application of RHCOS Image Layering for hotfix deployment:
+
+* **Package Issue Identification**: Recognized network driver problems caused by buggy ethtool version
+* **Image Layering Understanding**: Learned when and how to use layered images for hotfixes
+* **Hotfix Deployment**: Successfully applied a corrected package using MachineConfig with layered image
+* **Verification Process**: Confirmed both package version and functionality after hotfix application
+* **Architecture Analysis**: Understood the underlying rpm-ostree and container technologies
+
+== Additional Resources
+
+* link:https://github.com/openshift/rhcos-image-layering-examples/blob/master/override-kernel/Containerfile[Kernel Override Example]
+* link:https://issues.redhat.com/browse/OCPBUGS-30149[OpenShift Image Layering Enhancements]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/release_notes/ocp-4-19-release-notes[OpenShift 4.19 Image Mode Updates]

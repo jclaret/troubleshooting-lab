@@ -1,0 +1,280 @@
+= OpenShift Resources and Tools
+include::../_attributes.adoc[]
+
+== Lab Overview
+
+This foundational lab introduces essential Red Hat tools and methodologies for OpenShift cluster health validation and diagnostic data collection. You'll learn to establish baseline triage workflows using official Red Hat tooling and documentation, preparing you for both proactive monitoring and reactive troubleshooting scenarios.
+
+=== Learning Objectives
+
+By completing this lab, you will be able to:
+
+* Validate OpenShift cluster health using standard Red Hat diagnostic commands
+* Create comprehensive must-gather collections for support cases and offline analysis
+* Generate node-level sosreports for deep system troubleshooting
+* Apply Red Hat's recommended triage workflow for systematic problem resolution
+* Prepare standardized diagnostic artifacts for Red Hat Support cases
+
+== Exercise 1: Establishing Baseline Cluster Health
+
+=== Understanding Cluster Health Indicators
+
+Before troubleshooting any specific issue, establishing a comprehensive baseline of your cluster's health is essential. Red Hat provides standardized commands and tools designed specifically for this purpose.
+
+=== Initial Cluster Assessment
+
+Execute the following commands to gather baseline cluster information:
+
+[source,bash]
+----
+# Verify your authentication and cluster access
+oc whoami
+
+# Check OpenShift version and update status
+oc version
+oc get clusterversion
+
+# Examine cluster operator status (critical for overall health)
+oc get co
+
+# Validate node readiness and detailed information
+oc get nodes -o wide
+
+# Review all pods across namespaces for system-wide health
+oc get pods -A
+
+# Analyze recent cluster events for patterns or issues
+oc get events -A --sort-by=.lastTimestamp
+
+# Assess resource utilization at node and pod levels
+oc adm top nodes
+oc adm top pods -A
+----
+
+=== Interpreting Health Indicators
+
+After executing the baseline commands, analyze the output to identify potential concerns:
+
+* *ClusterOperators Status*: All operators should show `Available=True`, `Progressing=False`, `Degraded=False`
+* *Node Status*: All nodes should display `Ready` status with appropriate roles
+* *Pod Health*: System pods should be `Running` or `Completed`, not `Pending`, `CrashLoopBackOff`, or `Error`
+* *Resource Utilization*: CPU and memory usage should be within acceptable thresholds
+* *Recent Events*: No critical errors or warnings in recent cluster events
+
+=== Using Red Hat Resources
+
+When issues are identified, leverage official Red Hat resources to guide your troubleshooting approach:
+
+* *Product Documentation*: Reference official https://docs.redhat.com/en/documentation/openshift_container_platform/[OpenShift documentation] for configuration guidance
+* *Red Hat Knowledgebase*: Search for known issues and problem signaturesi in https://access.redhat.com/[Customer Portal] 
+* *Cluster Monitoring*: Use built-in Prometheus/Alertmanager for operator status and alerts on OpenShift Console > Observe > Dashboard
+* *Support Case Preparation*: Gather diagnostic artifacts if Red Hat Support engagement is needed in https://access.redhat.com/support/cases/[Customer Support]
+
+== Exercise 2: Creating Comprehensive Must-Gather Collections
+
+=== Diagnostic Steps: Understanding Must-Gather Purpose
+
+Must-gather is Red Hat's standardized diagnostic collection tool that packages cluster information in a format optimized for both Red Hat Support analysis and offline troubleshooting. Different types of must-gather collections serve specific diagnostic purposes.
+
+=== Information Gathering: Generic Cluster Data Collection
+
+Create a comprehensive baseline must-gather collection:
+
+[source,bash]
+----
+# Create organized directory structure for diagnostic data
+mkdir logs && cd logs
+
+# Generate standard must-gather with timestamp
+oc adm must-gather --dest-dir=./must-gather-$(date +%F)
+
+# Verify collection creation and size
+ll
+----
+
+Expected output structure:
+[source,console]
+----
+drwxr-xr-x. 3 demo-user users 4096 Aug  5 10:46 must-gather-2025-08-05
+----
+
+=== Testing and Validation: Component-Specific Collections
+
+For targeted troubleshooting, create component-specific must-gather collections using specialized images:
+
+[source,bash]
+----
+# OpenShift Data Foundation specific collection
+oc adm must-gather \
+  --image-stream=openshift/must-gather \
+  --image=registry.redhat.io/odf4/odf-must-gather-rhel9:v4.18
+
+# Verify multiple collections
+ll
+----
+
+Expected output:
+[source,console]
+----
+total 12
+drwxr-xr-x. 3 demo-user users 4096 Aug  5 10:46 must-gather-2025-08-05
+drwxr-xr-x. 4 demo-user users 4096 Aug  5 11:04 must-gather.local.8832762126482069764
+----
+
+[NOTE]
+====
+Substitute component-specific images for targeted data collection:
+* Network issues: Use network must-gather image
+* Logging problems: Use logging must-gather image  
+* Storage concerns: Use ODF must-gather image
+
+Reference: link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#gathering-data-specific-features_gathering-cluster-data[Gathering data about specific features]
+====
+
+=== Solution Implementation: Advanced Must-Gather Options
+
+Utilize enhanced filtering options for efficient data collection:
+
+[source,bash]
+----
+# Collect data from last 24 hours only
+oc adm must-gather --since=24h
+
+# Alternative time-based collection with specific timestamp
+oc adm must-gather --since-time=$(date -d '-24 hours' +%Y-%m-%dT%T.%9N%:z)
+----
+
+== Exercise 3: Audit Log Collection and Analysis
+
+=== Diagnostic Steps: Understanding Audit Log Importance
+
+OpenShift audit logs provide detailed records of API server requests, essential for security analysis, compliance reporting, and troubleshooting authentication/authorization issues.
+
+=== Information Gathering: Comprehensive Audit Data Collection
+
+Collect audit logs using specialized must-gather commands:
+
+[source,bash]
+----
+# Dedicated audit log collection
+oc adm must-gather -- /usr/bin/gather_audit_logs
+
+# Combined standard and audit log collection
+oc adm must-gather -- '/usr/bin/gather && /usr/bin/gather_audit_logs'
+----
+
+=== Testing and Validation: Advanced Audit Log Filtering
+
+Apply sophisticated filtering to audit logs for targeted analysis:
+
+[source,bash]
+----
+# Filter OAuth API server logs excluding routine 'get' operations
+oc adm node-logs ip-10-0-39-122.ec2.internal \
+  --path=oauth-apiserver/audit.log \
+  | jq 'select(.verb != "get")'
+
+# Analyze authentication failures with user identification
+oc adm node-logs ip-10-0-39-122.ec2.internal \
+  --path=oauth-apiserver/audit.log \
+  | jq 'select(.verb != "get" and .user.username != null and .objectRef.resource == "users")'
+----
+
+[TIP]
+====
+For comprehensive audit log filtering examples, reference: link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/security_and_compliance/audit-log-view[Filtering audit logs documentation]
+====
+
+== Exercise 4: Node-Level Diagnostic Collection with SosReport
+
+=== Diagnostic Steps: Understanding SosReport Capabilities
+
+SosReport provides deep operating system-level diagnostics from individual cluster nodes, essential for troubleshooting issues that span the container and host OS boundary.
+
+=== Information Gathering: Generating Node-Level Diagnostics
+
+Execute sosreport collection on a target node:
+
+[source,bash]
+----
+# Identify available nodes for diagnostic collection
+oc get nodes
+
+# Expected output showing node inventory
+NAME                          STATUS   ROLES                  AGE   VERSION
+ip-10-0-39-122.ec2.internal   Ready    control-plane,master   27h   v1.31.10
+ip-10-0-40-228.ec2.internal   Ready    control-plane,master   27h   v1.31.10
+ip-10-0-41-193.ec2.internal   Ready    worker                 27h   v1.31.10
+ip-10-0-50-174.ec2.internal   Ready    worker                 27h   v1.31.10
+ip-10-0-51-124.ec2.internal   Ready    worker                 27h   v1.31.10
+ip-10-0-54-169.ec2.internal   Ready    control-plane,master   27h   v1.31.10
+ip-10-0-58-191.ec2.internal   Ready    worker                 27h   v1.31.10
+----
+
+=== Solution Implementation: SosReport Generation Process
+
+Execute sosreport collection using oc debug node access:
+
+[source,bash]
+----
+# Access target node using debug pod
+oc debug node/ip-10-0-39-122.ec2.internal
+
+# Within the debug session, execute the following sequence:
+sh-5.1# chroot /host
+sh-5.1# toolbox  
+sh-5.1# sos report --all-logs
+sh-5.1# exit
+----
+
+=== Verification and Documentation: Retrieving SosReport Archive
+
+Extract the generated sosreport from the node to your workstation:
+
+[source,bash]
+----
+# Copy sosreport archive from node to local system
+oc debug node/ip-10-0-39-122.ec2.internal -- bash -c \
+  'cat /host/var/tmp/sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz.tar.xz' \
+  > sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz.tar.xz
+
+# Verify successful transfer and file size
+ll sosreport*
+----
+
+Expected output:
+[source,console]
+----
+-rw-r--r--. 1 demo-user users 30536992 Aug  5 13:01 sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz.tar.xz
+----
+
+== Lab Summary and Next Steps
+
+This foundational lab established essential skills for OpenShift cluster health validation and diagnostic data collection. You've learned to:
+
+* Execute standardized Red Hat cluster health validation commands
+* Create comprehensive must-gather collections for different troubleshooting scenarios
+* Generate and extract node-level sosreports for deep system analysis
+* Apply Red Hat's systematic approach to diagnostic data collection
+
+=== Key Takeaways
+
+* *Systematic Approach*: Always start with baseline cluster health validation
+* *Appropriate Tools*: Use must-gather for cluster-level issues, sosreport for node-level problems
+* *Documentation*: Maintain organized diagnostic collections with clear timestamps and descriptions
+* *Red Hat Resources*: Leverage official documentation and knowledgebase for guided troubleshooting
+
+=== Preparation for Support Cases
+
+When engaging Red Hat Support, provide:
+
+* Recent must-gather collection (generic and component-specific if applicable)
+* Relevant sosreports from affected nodes
+* Clear problem description with timeline of events
+* Steps already taken and their outcomes
+
+== Additional Resources
+
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data[OpenShift Support and Troubleshooting Guide]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#about-sosreport_gathering-cluster-data[SosReport Documentation]
+* link:https://access.redhat.com/articles/4406441[Red Hat Customer Portal - Must-Gather Analysis]

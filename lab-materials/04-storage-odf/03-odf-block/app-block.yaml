@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: odf-block
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rbd-hello-sa
+  namespace: odf-block
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rbd-hello-read-deploy
+  namespace: odf-block
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["rbd-hello"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rbd-hello-read-deploy
+  namespace: odf-block
+subjects:
+  - kind: ServiceAccount
+    name: rbd-hello-sa
+    namespace: odf-block
+roleRef:
+  kind: Role
+  name: rbd-hello-read-deploy
+  apiGroup: rbac.authorization.k8s.io
+---
+# RBD PVC (RWO)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rbd-hello-pvc
+  namespace: odf-block
+spec:
+  storageClassName: ocs-storagecluster-ceph-rbd
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Deployment with 3 replicas; readiness blocked until replicas==1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rbd-hello
+  namespace: odf-block
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rbd-hello
+  template:
+    metadata:
+      labels:
+        app: rbd-hello
+    spec:
+      serviceAccountName: rbd-hello-sa
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: rbd-hello
+              topologyKey: kubernetes.io/hostname
+      initContainers:
+        - name: seed
+          image: registry.access.redhat.com/ubi9/python-3.12-minimal:latest
+          command: ["/bin/sh","-lc"]
+          args:
+            - |
+              set -e
+              echo 'helloo world' > /data/index.html
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: web
+          image: registry.access.redhat.com/ubi9/python-3.12-minimal:latest
+          command: ["python","-m","http.server","8080","--directory","/data"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DEPLOYMENT_NAME
+              value: rbd-hello
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -lc
+                - |
+                  python - <<'PY'
+                  import os, json, ssl, urllib.request, sys
+                  ns  = os.getenv("POD_NAMESPACE","default")
+                  dep = os.getenv("DEPLOYMENT_NAME","rbd-hello")
+                  host = os.environ["KUBERNETES_SERVICE_HOST"]
+                  port = os.environ["KUBERNETES_SERVICE_PORT"]
+                  url = f"https://{host}:{port}/apis/apps/v1/namespaces/{ns}/deployments/{dep}"
+                  ca = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                  token = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read().strip()
+                  ctx = ssl.create_default_context(cafile=ca)
+                  req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+                  try:
+                      with urllib.request.urlopen(req, context=ctx, timeout=3) as r:
+                          d = json.load(r)
+                  except Exception:
+                      sys.exit(1)
+                  desired = d["spec"].get("replicas", 1)
+                  sys.exit(0 if desired == 1 else 1)
+                  PY
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 1
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rbd-hello-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rbd-hello
+  namespace: odf-block
+spec:
+  selector:
+    app: rbd-hello
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: rbd-hello
+  namespace: odf-block
+spec:
+  to:
+    kind: Service
+    name: rbd-hello
+  port:
+    targetPort: http

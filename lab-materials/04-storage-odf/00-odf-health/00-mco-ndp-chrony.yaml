@@ -1,0 +1,27 @@
+apiVersion: operator.openshift.io/v1
+kind: MachineConfiguration
+metadata:
+  name: cluster
+  namespace: openshift-machine-config-operator
+spec:
+  nodeDisruptionPolicy:
+    files:
+      - path: /etc/chrony.conf
+        actions:
+          - type: Restart
+            restart:
+              serviceName: chronyd.service
+    units:
+      - name: odf-skew-now.service
+        actions:
+          - type: DaemonReload
+          - type: Restart
+            restart:
+              serviceName: odf-skew-now.service
+      - name: odf-skew-reset.service
+        actions:
+          - type: DaemonReload
+          - type: Restart
+            restart:
+              serviceName: odf-skew-reset.service
+
