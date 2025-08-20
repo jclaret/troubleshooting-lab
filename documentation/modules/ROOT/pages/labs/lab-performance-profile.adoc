@@ -26,7 +26,7 @@ By completing this lab, you will be able to:
 
 == Understanding Performance Profiles
 
-=== Diagnostic Steps: Performance Profile Components
+=== Performance Profile Components
 
 Performance Profiles are a high-level abstraction that configures OpenShift nodes for latency-sensitive workloads. Key components include:
 
@@ -36,19 +36,10 @@ Performance Profiles are a high-level abstraction that configures OpenShift node
 * **NUMA Topology**: Non-Uniform Memory Access configuration for memory locality
 * **Kernel Parameters**: Low-level system tuning for performance optimization
 
-=== Information Gathering: Performance Profile Architecture
-
-The Performance Profile creates several OpenShift resources automatically:
-
-* **KubeletConfig**: Configures kubelet for CPU management and topology policies
-* **MachineConfig**: Applies kernel parameters and system-level configurations  
-* **Tuned Profile**: System-level tuning through the Node Tuning Operator
-* **RuntimeClass**: Optional container runtime configuration for real-time workloads
-
 
 === Performance Profile Troubleshooting commands
 
-After applying a Performance Profile, verify its status:
+After applying a Performance Profile, verify its status with the following commands:
 
 [source,bash]
 ----
@@ -70,23 +61,24 @@ oc debug node/<node-name> -- chroot /host cat /sys/kernel/mm/transparent_hugepag
 
 == Exercise 1: Troubleshooting Huge Pages Application Failure
 
-=== Problem Definition: Application Stuck in Pending State
+=== Application Stuck in Pending State
 
 Navigate to the first lab scenario:
 
 [source,bash]
 ----
 # Change to the performance profile lab directory
-cd ~/troubleshooting-lab/lab-materials/02-performance-profile/lab1-hugepages
+cd troubleshooting-lab/lab-materials/02-performance-profile/lab1-hugepages
 
 # Review the provided files
 ls -la
+
 # Expected files:
-# - performance_profile.yaml (Performance Profile with incorrect MCP selector)
-# - hugepages-web.yaml (Application requiring huge pages)
+ - performance_profile.yaml (Performance Profile with incorrect MCP selector)
+ - hugepages-web.yaml (Application requiring huge pages)
 ----
 
-=== Information Gathering: Initial Problem Analysis
+=== Initial Problem Analysis
 
 Deploy the initial problematic configuration:
 
@@ -97,6 +89,9 @@ oc scale machinesets.machine.openshift.io cluster-kcjvr-v8ng6-worker-us-east-1c 
 oc get machines.machine.openshift.io -n openshift-machine-api
 oc get nodes
 
+# Apply the Performance Profile with incorrect configuration
+oc apply -f performance_profile.yaml
+
 # Deploy the huge pages application
 oc new-project hugepages-web
 oc apply -f hugepages-web.yaml
@@ -104,9 +99,6 @@ oc apply -f hugepages-web.yaml
 # Check application status
 oc get pods -n hugepages-web
 oc describe pod -n hugepages-web
-
-# Apply the Performance Profile with incorrect configuration
-oc apply -f performance_profile.yaml
 
 # Check Performance Profile status
 oc get performanceprofile lab1-hugepages -o yaml
@@ -152,10 +144,10 @@ oc label node "$NODE" node-role.kubernetes.io/mcp-hugepages="" --overwrite
 # Verify node labeling
 oc get node "$NODE" --show-labels | grep mcp-hugepages
 
-# Step 3: Wait for Performance Profile to be applied
+# Wait for Performance Profile to be applied
 oc get performanceprofile lab1-hugepages
 
-# Step 4: Monitor MachineConfigPool rollout
+# Monitor MachineConfigPool rollout
 oc get mcp mcp-hugepages -w
 ----
 
@@ -174,7 +166,7 @@ oc get route hugepages-web -n hugepages-web -o jsonpath='{.spec.host}{"\n"}'
 # curl http://<route-url> or open in browser
 ----
 
-== Exercise 3: Troubleshooting Kernel Parameter Tuning
+== Exercise 2: Troubleshooting Kernel Parameter Tuning
 
 === Problem Definition: Application Requiring Custom Kernel Parameters
 
@@ -183,18 +175,19 @@ Navigate to the second lab scenario:
 [source,bash]
 ----
 # Change to the second performance profile lab directory
-cd ~/troubleshooting-lab/lab-materials/02-performance-profile/lab2-tuned
+cd troubleshooting-lab/lab-materials/02-performance-profile/lab2-tuned
 
 # Review the provided files
 ls -la
+
 # Expected files:
-# - conntrack-app.yaml (Application requiring custom kernel.pid_max)
-# - machine_config_pool.yaml (New machine config pool)
-# - performance_profile.yaml (New Performace Profile)
-# - tuned.yaml (Tuned profile)
+- conntrack-app.yaml (Application requiring custom kernel.pid_max)
+- machine_config_pool.yaml (New machine config pool)
+- performance_profile.yaml (New Performace Profile)
+- tuned.yaml (Tuned profile)
 ----
 
-=== Information Gathering: Deploying the Second Scenario
+=== Deploying the Second application
 
 Deploy the application that requires custom kernel parameters:
 
@@ -237,7 +230,7 @@ oc describe pod -n conntrack-app
 oc logs deployment/conntrack-app -n conntrack-app
 ----
 
-The application will fail with an error indicating incorrect `kernel.pid_max` value.
+The application will fail with an error indicating incorrect `conntrack` value.
 
 === Investigation Challenge
 
@@ -302,36 +295,6 @@ This lab demonstrated critical troubleshooting skills for Performance Profile co
 * **Tuned Profile Debugging**: Identified and fixed syntax errors in custom Tuned configurations
 * **Kernel Parameter Tuning**: Applied custom kernel parameters through Tuned profiles
 * **Application Dependencies**: Understood how applications depend on system-level performance configurations
-
-=== Key Takeaways
-
-* **Systematic Diagnosis**: Always check Performance Profile status, MCP configuration, and node labels
-* **Layered Configuration**: Performance Profiles generate multiple resources (MachineConfig, KubeletConfig, Tuned)
-* **Custom Tuning**: Advanced configurations require custom Tuned profiles that inherit from base configurations
-* **Validation Process**: Verify both system-level changes and application functionality after applying fixes
-
-=== Common Issues and Solutions
-
-[cols="2,3,3", options="header"]
-|===
-|Issue |Symptoms |Solution
-
-|Performance Profile not applied
-|`GettingMachineConfigPoolFailed` error
-|Create matching MCP and label nodes correctly
-
-|Tuned profile degraded
-|`APPLIED=False, DEGRADED=True`
-|Fix syntax errors in Tuned configuration
-
-|Application pending
-|Pod stuck in Pending, resource not available
-|Verify Performance Profile is applied and resources allocated
-
-|Huge pages unavailable
-|HugePages allocation fails
-|Check Performance Profile huge pages configuration and node resources
-|===
 
 == Additional Resources
 
