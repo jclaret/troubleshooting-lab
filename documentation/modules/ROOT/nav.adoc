@@ -6,7 +6,6 @@
 
 * xref:02-labs.adoc[2. Troubleshooting Exercises]
 ** xref:labs/lab-resources-tools.adoc#resources[OpenShift Resources and Tools]
-** xref:labs/lab-monitoring.adoc#monitoring[OpenShift Monitoring]
 ** xref:labs/lab-telco-rds.adoc#rds[OpenShift Telco RAN Reference Designi Specification]
 ** xref:labs/lab-ztp-workflow.adoc#ztp[OpenShift Deployments - ZTP Workflow]
 ** xref:labs/lab-gitops-sync.adoc#gitos[GitOps Operator - Sync Flows]
