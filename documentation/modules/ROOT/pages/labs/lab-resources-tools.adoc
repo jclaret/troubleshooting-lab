@@ -90,15 +90,10 @@ oc adm must-gather --dest-dir=./must-gather-$(date +%F)
 
 # Verify collection creation and size
 ll
-----
-
-Expected output structure:
-[source,console]
-----
 drwxr-xr-x. 3 demo-user users 4096 Aug  5 10:46 must-gather-2025-08-05
 ----
 
-=== Testing and Validation: Component-Specific Collections
+=== Component-Specific Collections
 
 For targeted troubleshooting, create component-specific must-gather collections using specialized images:
 
@@ -111,11 +106,6 @@ oc adm must-gather \
 
 # Verify multiple collections
 ll
-----
-
-Expected output:
-[source,console]
-----
 total 12
 drwxr-xr-x. 3 demo-user users 4096 Aug  5 10:46 must-gather-2025-08-05
 drwxr-xr-x. 4 demo-user users 4096 Aug  5 11:04 must-gather.local.8832762126482069764
@@ -131,7 +121,7 @@ Substitute component-specific images for targeted data collection:
 Reference: link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#gathering-data-specific-features_gathering-cluster-data[Gathering data about specific features]
 ====
 
-=== Solution Implementation: Advanced Must-Gather Options
+=== Advanced Must-Gather Options
 
 Utilize enhanced filtering options for efficient data collection:
 
@@ -146,11 +136,11 @@ oc adm must-gather --since-time=$(date -d '-24 hours' +%Y-%m-%dT%T.%9N%:z)
 
 == Exercise 3: Audit Log Collection and Analysis
 
-=== Diagnostic Steps: Understanding Audit Log Importance
+=== Understanding Audit Log Importance
 
 OpenShift audit logs provide detailed records of API server requests, essential for security analysis, compliance reporting, and troubleshooting authentication/authorization issues.
 
-=== Information Gathering: Comprehensive Audit Data Collection
+=== Comprehensive Audit Data Collection
 
 Collect audit logs using specialized must-gather commands:
 
@@ -163,7 +153,7 @@ oc adm must-gather -- /usr/bin/gather_audit_logs
 oc adm must-gather -- '/usr/bin/gather && /usr/bin/gather_audit_logs'
 ----
 
-=== Testing and Validation: Advanced Audit Log Filtering
+=== Advanced Audit Log Filtering
 
 Apply sophisticated filtering to audit logs for targeted analysis:
 
@@ -187,11 +177,11 @@ For comprehensive audit log filtering examples, reference: link:https://docs.red
 
 == Exercise 4: Node-Level Diagnostic Collection with SosReport
 
-=== Diagnostic Steps: Understanding SosReport Capabilities
+=== Understanding SosReport Capabilities
 
 SosReport provides deep operating system-level diagnostics from individual cluster nodes, essential for troubleshooting issues that span the container and host OS boundary.
 
-=== Information Gathering: Generating Node-Level Diagnostics
+=== Generating Node-Level Diagnostics
 
 Execute sosreport collection on a target node:
 
@@ -204,14 +194,14 @@ oc get nodes
 NAME                          STATUS   ROLES                  AGE   VERSION
 ip-10-0-39-122.ec2.internal   Ready    control-plane,master   27h   v1.31.10
 ip-10-0-40-228.ec2.internal   Ready    control-plane,master   27h   v1.31.10
+ip-10-0-54-169.ec2.internal   Ready    control-plane,master   27h   v1.31.10
 ip-10-0-41-193.ec2.internal   Ready    worker                 27h   v1.31.10
 ip-10-0-50-174.ec2.internal   Ready    worker                 27h   v1.31.10
 ip-10-0-51-124.ec2.internal   Ready    worker                 27h   v1.31.10
-ip-10-0-54-169.ec2.internal   Ready    control-plane,master   27h   v1.31.10
 ip-10-0-58-191.ec2.internal   Ready    worker                 27h   v1.31.10
 ----
 
-=== Solution Implementation: SosReport Generation Process
+=== SosReport Generation Process
 
 Execute sosreport collection using oc debug node access:
 
@@ -227,7 +217,7 @@ sh-5.1# sos report --all-logs
 sh-5.1# exit
 ----
 
-=== Verification and Documentation: Retrieving SosReport Archive
+=== Retrieving SosReport Archive
 
 Extract the generated sosreport from the node to your workstation:
 
@@ -240,29 +230,8 @@ oc debug node/ip-10-0-39-122.ec2.internal -- bash -c \
 
 # Verify successful transfer and file size
 ll sosreport*
-----
-
-Expected output:
-[source,console]
-----
 -rw-r--r--. 1 demo-user users 30536992 Aug  5 13:01 sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz.tar.xz
 ----
-
-== Lab Summary and Next Steps
-
-This foundational lab established essential skills for OpenShift cluster health validation and diagnostic data collection. You've learned to:
-
-* Execute standardized Red Hat cluster health validation commands
-* Create comprehensive must-gather collections for different troubleshooting scenarios
-* Generate and extract node-level sosreports for deep system analysis
-* Apply Red Hat's systematic approach to diagnostic data collection
-
-=== Key Takeaways
-
-* *Systematic Approach*: Always start with baseline cluster health validation
-* *Appropriate Tools*: Use must-gather for cluster-level issues, sosreport for node-level problems
-* *Documentation*: Maintain organized diagnostic collections with clear timestamps and descriptions
-* *Red Hat Resources*: Leverage official documentation and knowledgebase for guided troubleshooting
 
 === Preparation for Support Cases
 
@@ -271,7 +240,16 @@ When engaging Red Hat Support, provide:
 * Recent must-gather collection (generic and component-specific if applicable)
 * Relevant sosreports from affected nodes
 * Clear problem description with timeline of events
-* Steps already taken and their outcomes
+* Steps already taken and their outcomes as well as the reproducer
+
+== Lab Summary
+
+This foundational lab established essential skills for OpenShift cluster health validation and diagnostic data collection. You've learned to:
+
+* Execute standardized Red Hat cluster health validation commands
+* Create comprehensive must-gather collections for different troubleshooting scenarios
+* Generate and extract node-level sosreports for deep system analysis
+* Apply Red Hat's systematic approach to diagnostic data collection
 
 == Additional Resources
 

@@ -9,7 +9,6 @@ This section presents a comprehensive collection of hands-on troubleshooting sce
 The troubleshooting exercises are organized into the following specialized areas:
 
 * *OpenShift Resources and Tools*: Essential commands and diagnostic utilities
-* *OpenShift Monitoring*: Prometheus, Grafana, and alerting troubleshooting
 * *OpenShift Telco RAN Reference Design*: 5G telecommunications-specific configurations
 * *OpenShift Deployments - ZTP Workflow*: Zero Touch Provisioning and ACM troubleshooting
 * *GitOps Operator - Sync Flows*: ArgoCD and application synchronization issues
@@ -86,15 +85,3 @@ Effective troubleshooting requires a systematic approach that eliminates guesswo
 * *Builds Knowledge*: Documented process creates reusable troubleshooting procedures
 * *Minimizes Risk*: Controlled testing prevents additional system disruption
 * *Enhances Skills*: Methodical practice develops expert-level troubleshooting abilities
-
-== Lab Structure
-
-Each troubleshooting scenario in this course implements the six-step methodology:
-
-. *Diagnostic Steps*: Documentation and essential concepts for understanding OpenShift components
-. *Information Gathering*: Collecting relevant data about the problem environment
-. *Problem Definition*: Creating accurate problem statements with clear success criteria
-. *Hypothesis Development*: Formulating testable theories based on evidence
-. *Testing and Validation*: Systematically testing each hypothesis with measurable outcomes
-. *Solution Implementation*: Applying appropriate fixes based on validated analysis
-. *Verification and Documentation*: Confirming resolution and recording lessons learned
