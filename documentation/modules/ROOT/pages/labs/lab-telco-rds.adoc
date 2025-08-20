@@ -21,7 +21,7 @@ By completing this lab, you will be able to:
 
 == Understanding Telco RAN Reference Design
 
-=== Diagnostic Steps: Telco RDS Overview
+=== Telco RDS Overview
 
 The Telco RAN DU Reference Design Specification (RDS) defines the recommended configuration for OpenShift clusters hosting 5G Radio Access Network workloads on commodity hardware. This specification ensures:
 
@@ -35,9 +35,8 @@ Key RDS components include:
 * *Machine Configuration*: Kernel parameters, systemd services, and OS-level tuning
 * *Performance Profiles*: CPU isolation, NUMA topology awareness, and real-time scheduling
 * *Network Configuration*: SR-IOV, DPDK, and high-performance networking
-* *Storage Optimization*: Local storage configuration and persistent volume management
 
-=== Information Gathering: Cluster-Compare Plugin Purpose
+=== Cluster-Compare Plugin Purpose
 
 The cluster-compare plugin is an OpenShift CLI tool that:
 
@@ -48,7 +47,7 @@ The cluster-compare plugin is an OpenShift CLI tool that:
 
 == Exercise 1: Installing the Cluster-Compare Plugin
 
-=== Information Gathering: Plugin Installation Process
+=== Plugin Installation Process
 
 Navigate to the lab exercise directory and install the cluster-compare plugin:
 
@@ -71,7 +70,7 @@ sudo mv kubectl-cluster_compare /usr/local/bin/kubectl-cluster_compare
 podman rm cca
 ----
 
-=== Testing and Validation: Verify Plugin Installation
+=== Verify Plugin Installation
 
 Confirm the cluster-compare plugin is properly installed and accessible:
 
@@ -85,7 +84,7 @@ Expected output should display the plugin help information and available command
 
 == Exercise 2: Extracting Reference Configuration
 
-=== Information Gathering: Reference Bundle Extraction
+=== Reference Bundle Extraction
 
 Extract the telco RAN reference configuration bundle for comparison:
 
@@ -105,7 +104,7 @@ podman run --log-driver=none --rm \
 
 This creates a directory structure `out/reference/...` containing the complete telco RAN reference configuration.
 
-=== Problem Definition: Creating Minimal Validation Scope
+=== Creating Minimal Validation Scope
 
 For this lab exercise, we'll use a simplified metadata file focusing on essential configuration:
 
@@ -141,6 +140,7 @@ Example expected output:
 [source,console]
 ----
 oc cluster-compare -r out/reference/metadata_new.yaml
+
 Summary
 CRs with diffs: 0/0
 CRs in reference missing from the cluster: 2
@@ -216,7 +216,7 @@ oc patch pdb openshift-apiserver -n local-cluster-development -p '{"spec":{"minA
 oc patch pdb openshift-oauth-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
 ----
 
-=== Verification and Documentation: Confirming Success
+=== Verification
 
 Wait for all Machine Config Pools to show `UPDATED=True` and `UPDATING=False`, then verify complete compliance.
 
@@ -243,4 +243,3 @@ This lab demonstrated the critical importance of maintaining telco RAN RDS compl
 == Additional Resources
 
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/telco-ran-du-ref-design-specs[Complete Telco RAN DU Reference Design Specification]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/scalability_and_performance/ztp-deploying-disconnected#ztp-the-cluster-validator-tool_ztp-deploying-disconnected[Cluster Validator Tool Documentation]

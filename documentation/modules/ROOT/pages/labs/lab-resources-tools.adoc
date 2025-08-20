@@ -113,10 +113,7 @@ drwxr-xr-x. 4 demo-user users 4096 Aug  5 11:04 must-gather.local.88327621264820
 
 [NOTE]
 ====
-Substitute component-specific images for targeted data collection:
-* Network issues: Use network must-gather image
-* Logging problems: Use logging must-gather image  
-* Storage concerns: Use ODF must-gather image
+Substitute component-specific images for targeted data collection
 
 Reference: link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#gathering-data-specific-features_gathering-cluster-data[Gathering data about specific features]
 ====
@@ -159,20 +156,20 @@ Apply sophisticated filtering to audit logs for targeted analysis:
 
 [source,bash]
 ----
-# Filter OAuth API server logs excluding routine 'get' operations
+# Filter OAuth API server logs excluding 'get' operations
 oc adm node-logs ip-10-0-39-122.ec2.internal \
   --path=oauth-apiserver/audit.log \
   | jq 'select(.verb != "get")'
 
-# Analyze authentication failures with user identification
+# Analyze OpenShift API server audit logs by user
 oc adm node-logs ip-10-0-39-122.ec2.internal \
   --path=oauth-apiserver/audit.log \
-  | jq 'select(.verb != "get" and .user.username != null and .objectRef.resource == "users")'
+  | jq 'select(.user.username == "myusername")'
 ----
 
 [TIP]
 ====
-For comprehensive audit log filtering examples, reference: link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/security_and_compliance/audit-log-view[Filtering audit logs documentation]
+For comprehensive audit log filtering examples, reference: link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/security_and_compliance/audit-log-view#security-audit-log-basic-filtering_audit-log-view[Filtering audit logs documentation]
 ====
 
 == Exercise 4: Node-Level Diagnostic Collection with SosReport
@@ -217,6 +214,11 @@ sh-5.1# sos report --all-logs
 sh-5.1# exit
 ----
 
+[TIP]
+====
+Gathering data about your cluster, reference: link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#about-sosreport_gathering-cluster-data[About sosreport]
+====
+
 === Retrieving SosReport Archive
 
 Extract the generated sosreport from the node to your workstation:
@@ -253,6 +255,6 @@ This foundational lab established essential skills for OpenShift cluster health 
 
 == Additional Resources
 
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data[OpenShift Support and Troubleshooting Guide]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data[Gathering data about your cluster]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#about-sosreport_gathering-cluster-data[SosReport Documentation]
-* link:https://access.redhat.com/articles/4406441[Red Hat Customer Portal - Must-Gather Analysis]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/support/index#support-overview-troubleshooting-issues[Troubleshooting issues]
