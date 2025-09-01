@@ -9,7 +9,7 @@ This section presents a comprehensive collection of hands-on troubleshooting sce
 The troubleshooting exercises are organized into the following specialized areas:
 
 * *OpenShift Resources and Tools*: Essential commands and diagnostic utilities
-* *OpenShift Telco RAN Reference Design*: 5G telecommunications-specific configurations
+* *OpenShift Telco RAN Reference Design*: RDS configurations
 * *OpenShift Deployments - ZTP Workflow*: Zero Touch Provisioning and ACM troubleshooting
 * *GitOps Operator - Sync Flows*: ArgoCD and application synchronization issues
 * *Node Tuning Operator - Performance Profiles*: Performance Profiles troubleshooting
@@ -80,8 +80,8 @@ For effective troubleshooting, we recommend following a structured approach that
 
 === Benefits of This Approach
 
-**Saves Time:** No more random guessing - you work with purpose
-**Gets Results:** Evidence-based decisions lead to the right answers
-**Builds Expertise:** Each problem teaches you something for the next one
-**Reduces Risk:** Controlled testing means fewer "oops" moments
-**Improves Confidence:** A clear process helps you tackle any problem
+- **Saves Time:** No more random guessing - you work with purpose
+- **Gets Results:** Evidence-based decisions lead to the right answers
+- **Builds Expertise:** Each problem teaches you something for the next one
+- **Reduces Risk:** Controlled testing means fewer "oops" moments
+- **Improves Confidence:** A clear process helps you tackle any problem

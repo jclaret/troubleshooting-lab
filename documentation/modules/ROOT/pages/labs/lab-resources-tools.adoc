@@ -25,7 +25,9 @@ Before troubleshooting any specific issue, establishing a comprehensive baseline
 
 Execute the following commands to gather baseline cluster information:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Verify your authentication and cluster access
 oc whoami
@@ -80,7 +82,9 @@ Must-gather is Red Hat's standardized diagnostic collection tool that packages c
 
 Create a comprehensive baseline must-gather collection:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Create organized directory structure for diagnostic data
 mkdir logs && cd logs
@@ -97,7 +101,9 @@ drwxr-xr-x. 3 demo-user users 4096 Aug  5 10:46 must-gather-2025-08-05
 
 For targeted troubleshooting, create component-specific must-gather collections using specialized images:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # OpenShift Data Foundation specific collection
 oc adm must-gather \
@@ -122,7 +128,9 @@ Reference: link:https://docs.redhat.com/en/documentation/openshift_container_pla
 
 Utilize enhanced filtering options for efficient data collection:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Collect data from last 24 hours only
 oc adm must-gather --since=24h
@@ -141,7 +149,9 @@ OpenShift audit logs provide detailed records of API server requests, essential 
 
 Collect audit logs using specialized must-gather commands:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Dedicated audit log collection
 oc adm must-gather -- /usr/bin/gather_audit_logs
@@ -154,7 +164,9 @@ oc adm must-gather -- '/usr/bin/gather && /usr/bin/gather_audit_logs'
 
 Apply sophisticated filtering to audit logs for targeted analysis:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Filter OAuth API server logs excluding 'get' operations
 oc adm node-logs ip-10-0-39-122.ec2.internal \
@@ -182,7 +194,9 @@ SosReport provides deep operating system-level diagnostics from individual clust
 
 Execute sosreport collection on a target node:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Identify available nodes for diagnostic collection
 oc get nodes
@@ -202,7 +216,9 @@ ip-10-0-58-191.ec2.internal   Ready    worker                 27h   v1.31.10
 
 Execute sosreport collection using oc debug node access:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Access target node using debug pod
 oc debug node/ip-10-0-39-122.ec2.internal
@@ -223,7 +239,9 @@ Gathering data about your cluster, reference: link:https://docs.redhat.com/en/do
 
 Extract the generated sosreport from the node to your workstation:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Copy sosreport archive from node to local system
 oc debug node/ip-10-0-39-122.ec2.internal -- bash -c \
