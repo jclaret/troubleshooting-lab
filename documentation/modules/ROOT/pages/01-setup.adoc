@@ -90,7 +90,9 @@ The kubeadmin password is typically provided in your lab provisioning details.
 
 Confirm that your OpenShift cluster is operational and accessible by checking the node status:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Verify cluster nodes are ready and responsive
 oc get nodes
@@ -98,7 +100,9 @@ oc get nodes
 
 *Expected Output*: You should see a similar node configuration:
 
-[source,console]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 NAME                          STATUS   ROLES                  AGE   VERSION
 ip-10-0-54-169.ec2.internal   Ready    control-plane,master   25h   v1.31.10
@@ -138,7 +142,9 @@ The aws-vault tool provides secure storage and management of AWS credentials, el
 
 ==== Step 1: Download and Install aws-vault
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Download the latest aws-vault binary for Linux
 sudo curl -L https://github.com/99designs/aws-vault/releases/latest/download/aws-vault-linux-amd64 -o /usr/local/bin/aws-vault
@@ -151,7 +157,9 @@ sudo chmod +x /usr/local/bin/aws-vault
 
 Configure aws-vault with your lab-specific AWS credentials using the secure file backend:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Create a new AWS profile with file-based credential storage
 aws-vault add lab-profile --backend=file
@@ -159,7 +167,9 @@ aws-vault add lab-profile --backend=file
 
 *Interactive Prompts*: You'll be asked to provide:
 
-[source,console]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 Enter Access Key ID: *******************
 Enter Secret Access Key: ****************************************
@@ -176,7 +186,9 @@ The passphrase `redhat` is used for this lab environment. In production, use a s
 
 Confirm that your credentials are properly stored and accessible:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # List all stored AWS profiles and their status
 aws-vault list --backend=file
@@ -184,7 +196,9 @@ aws-vault list --backend=file
 
 *Expected Output*:
 
-[source,console]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 Profile                  Credentials              Sessions                 
 =======                  ===========              ========                 
@@ -197,7 +211,9 @@ lab-profile              lab-profile              -
 
 Use OpenShift to identify the AWS region where your cluster is deployed:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Query the cluster infrastructure for AWS region information
 oc get infrastructure cluster -o jsonpath='{.status.platformStatus.aws.region}{"\n"}'
@@ -209,7 +225,9 @@ oc get infrastructure cluster -o jsonpath='{.status.platformStatus.aws.region}{"
 
 Set the appropriate AWS region for your lab profile:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Configure the AWS region for your lab profile
 aws configure set region us-east-1 --profile lab-profile
@@ -221,7 +239,9 @@ aws configure set region us-east-1 --profile lab-profile
 
 Create a secure login URL for accessing the AWS Management Console:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Generate AWS console login URL with temporary credentials
 aws-vault login lab-profile --backend=file --stdout
@@ -229,7 +249,9 @@ aws-vault login lab-profile --backend=file --stdout
 
 *Interactive Prompt*:
 
-[source,console]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 Enter passphrase to unlock "/home/demo-user/.awsvault/keys/": (redhat)
 ----
@@ -247,7 +269,9 @@ To access all the lab exercises, documentation, and supporting files, you'll nee
 
 Once you're connected to your bastion host, clone the hands-on lab repository:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 git clone https://github.com/jclaret/troubleshooting-lab.git
 cd troubleshooting-lab/lab-materials
