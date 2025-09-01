@@ -53,7 +53,9 @@ To begin working with the lab environment, you need to establish connectivity to
 
 First, establish an SSH connection to your assigned bastion host using your unique lab identifier:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # SSH into the bastion host (replace <guid> with your actual lab GUID)
 ssh demo-user@bastion.<guid>.<sandbox>.opentlc.com
@@ -69,7 +71,9 @@ Replace `<sandbox>` with the specific identifier provided in your lab.
 
 Once connected to the bastion host, authenticate with the OpenShift cluster API:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Login to the OpenShift API endpoint (replace <guid.guid> with your cluster URL)
 oc login https://api.cluster-<guid>.<sandbox>.opentlc.com:6443 \
