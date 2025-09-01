@@ -39,7 +39,9 @@ Key RDS components include:
 === Setup Machine Config Pool
 Para este ejercicio y los siguiente crearemos un nodo y un MachineConfig Pool nuevo "workshop" para evitar esperar mucho tiempo durante los cambios que haremos en los nodos.
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Scale up 1 nodes (5min)
 oc scale machinesets.machine.openshift.io cluster-kcjvr-v8ng6-worker-us-east-1c -n openshift-machine-api --replicas=5
@@ -78,7 +80,9 @@ The cluster-compare plugin is an OpenShift CLI tool that:
 
 Navigate to the lab exercise directory and install the cluster-compare plugin:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Change to the telco RAN lab directory
 cd troubleshooting-lab/lab-materials/01-telco-rds
@@ -101,7 +105,9 @@ podman rm cca
 
 Confirm the cluster-compare plugin is properly installed and accessible:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Verify plugin installation and view available options
 oc cluster-compare -h
@@ -115,7 +121,9 @@ Expected output should display the plugin help information and available command
 
 Extract the telco RAN reference configuration bundle for comparison:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Pull the ZTP site generator image containing reference configurations
 podman pull quay.io/jclaret/openshift4/ztp-site-generate-rhel8:v4.18
@@ -135,7 +143,9 @@ This creates a directory structure `out/reference/...` containing the complete t
 
 For this lab exercise, we'll use a simplified metadata file focusing on essential configuration:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Copy the simplified metadata file for lab exercise
 cp metadata_workshop.yaml out/reference/metadata_workshop.yaml
@@ -151,7 +161,9 @@ cat out/reference/metadata_workshop.yaml
 
 Run the cluster-compare plugin to identify configuration gaps against the RDS requirements:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Execute compliance comparison against simplified metadata
 oc cluster-compare -r out/reference/metadata_new.yaml
@@ -164,7 +176,9 @@ The cluster-compare output will likely show non-compliant configurations, partic
 * Missing kdump MachineConfig for worker nodes  
 
 Example expected output:
-[source,console]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 oc cluster-compare -r out/reference/metadata_workshop.yaml
 
@@ -203,7 +217,9 @@ Try: `find out/source-crs/ -name "*kdump*" -type f`
 
 If you've completed your investigation or need guidance, here's the solution:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Apply RDS configuration example
 oc apply -f ./out/source-crs/extra-manifest/06-kdump-workshop.yaml
@@ -216,7 +232,9 @@ oc cluster-compare -r out/reference/metadata_workshop.yaml
 ----
 
 ==== Monitor Drain Progress
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check which node is currently being drained
 oc get nodes
@@ -243,7 +261,9 @@ oc patch pdb openshift-oauth-apiserver -n local-cluster-development -p '{"spec":
 Wait for all Machine Config Pools to show `UPDATED=True` and `UPDATING=False`, then verify complete compliance.
 
 Expected successful output:
-[source,console]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 Summary
 CRs with diffs: 0/1
