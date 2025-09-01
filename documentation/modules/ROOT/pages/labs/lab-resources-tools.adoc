@@ -230,6 +230,20 @@ sh-5.1# sos report --all-logs
 sh-5.1# exit
 ----
 
+[NOTE]
+====
+During execution, sosreport will prompt you with several interactive questions (case number, contact information, etc.). You can press Enter to accept defaults or provide any values - the answers don't affect the data collection process.
+====
+
+After completion, the command will display output similar to:
+[.lines_space]
+[.console-output]
+[source,text]
+----
+Your sos report has been generated and saved in:
+	/host/var/tmp/sosreport-ip-10-0-39-122-2025-09-01-pbfjqgd.tar.xz
+----
+
 [TIP]
 ====
 Gathering data about your cluster, reference: link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#about-sosreport_gathering-cluster-data[About sosreport]
@@ -237,7 +251,7 @@ Gathering data about your cluster, reference: link:https://docs.redhat.com/en/do
 
 === Retrieving SosReport Archive
 
-Extract the generated sosreport from the node to your workstation:
+Extract the generated sosreport from the node to your workstation using the exact filename from the previous step:
 
 [.lines_space]
 [.console-input]
