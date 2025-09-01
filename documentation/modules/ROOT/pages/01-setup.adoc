@@ -69,14 +69,22 @@ Replace `<sandbox>` with the specific identifier provided in your lab.
 
 === Step 2: Authenticate with OpenShift
 
-Once connected to the bastion host, authenticate with the OpenShift cluster API:
+Once connected to the bastion host, verify your OpenShift cluster authentication:
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Verify cluster connectivity and authentication
+oc get nodes
+----
 
+If the above command fails or you need to authenticate with different credentials, login to the OpenShift API endpoint:
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
 # Login to the OpenShift API endpoint (replace <guid.guid> with your cluster URL)
-oc login https://api.cluster-<guid>.<sandbox>.opentlc.com:6443 \
+oc login https://api.cluster-<guid>.<guid><sandbox>.opentlc.com:6443 \
   --username=kubeadmin \
   --password=<your-kubeadmin-password>
 ----
@@ -179,6 +187,8 @@ Added credentials to profile "lab-profile" in vault
 
 [NOTE]
 ====
+The `Access Key ID` and `Secret Access Key` is provided in your lab provisioning details.
+
 The passphrase `redhat` is used for this lab environment. In production, use a strong, unique passphrase.
 ====
 
@@ -258,7 +268,7 @@ Enter passphrase to unlock "/home/demo-user/.awsvault/keys/": (redhat)
 
 *Output*: A secure HTTPS URL that provides direct access to the AWS Console with your lab credentials.
 
-From the AWS console, go to Compute > EC2 to view the created instances.
+From the AWS console, navigate to EC2 instances. If EC2 doesn't appear under Compute on the main dashboard, use the search bar to find "EC2" and then go to "Instances".
 
 [#git]
 == Hands-on Lab Git Repository

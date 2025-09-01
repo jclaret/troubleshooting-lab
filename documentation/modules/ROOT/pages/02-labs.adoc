@@ -20,68 +20,68 @@ The troubleshooting exercises are organized into the following specialized areas
 
 == Troubleshooting Strategy: Using the Scientific Method
 
-Effective troubleshooting requires a systematic approach that eliminates guesswork and ensures reproducible results. Throughout these labs, we'll apply a structured methodology based on the scientific method adapted for IT troubleshooting scenarios.
+For effective troubleshooting, we recommend following a structured approach that helps you work smarter, not harder. This methodology will guide you through complex problems systematically, reducing guesswork and improving your success rate. In this lab, we'll explore these key troubleshooting principles:
 
-=== Troubleshooting Process
+=== Troubleshooting Methodology
 
 ==== 1. Information Gathering
-*Objective*: Collect comprehensive data about the problem environment
+**What to do:** Get all the facts before jumping into fixes
 
-* Gather symptoms and error messages from multiple sources
-* Document system configurations and recent changes  
-* Identify affected components and their relationships
-* Establish timeline of events leading to the issue
-* Collect relevant logs, metrics, and diagnostic outputs
+- Collect error messages and symptoms from different sources
+- Check what changed recently in the system
+- Map out which parts are affected and how they connect
+- Build a timeline of when things started going wrong
+- Gather logs and monitoring data from relevant components
 
 ==== 2. Problem Definition
-*Objective*: Create a precise and measurable problem statement
+**What to do:** Be clear about what you're trying to fix
 
-* Define what is working versus what is not working
-* Establish clear success criteria for resolution
-* Identify the scope and impact of the issue
-* Document expected behavior versus observed behavior
-* Determine if this is a new problem or recurring issue
+- Identify exactly what's broken vs. what's still working
+- Set specific goals for what "fixed" means
+- Understand how big the impact is and who's affected
+- Compare what should happen vs. what's actually happening
+- Determine if this is a new issue or something that's happened before
 
 ==== 3. Hypothesis Development
-*Objective*: Formulate logical theories based on collected evidence
+**What to do:** Use the evidence to build logical explanations
 
-* Analyze gathered data to identify potential root causes
-* Prioritize hypotheses based on likelihood and impact
-* Consider multiple possible explanations for observed symptoms
-* Reference known issues and common failure patterns
-* Ensure hypotheses are testable and measurable
+- Look at your data and brainstorm possible causes
+- Focus on the most likely culprits first
+- Consider multiple explanations - don't tunnel vision on one idea
+- Think about common problems you've seen before
+- Make sure your theories can actually be tested
 
 ==== 4. Hypothesis Testing
-*Objective*: Systematically validate or eliminate each theory
+**What to do:** Prove or disprove your theories systematically
 
-* Design specific tests to prove or disprove each hypothesis
-* Execute tests in a controlled manner to avoid additional issues
-* Use non-disruptive diagnostic commands when possible
-* Test one variable at a time to isolate cause and effect
-* Document test procedures for reproducibility
+- Design specific tests for each theory
+- Use safe, non-disruptive commands when possible
+- Test one thing at a time to see what really causes what
+- Change only what you need to for each test
+- Keep track of what you tried and what happened
 
 ==== 5. Analysis and Documentation
-*Objective*: Evaluate test results and refine understanding
+**What to do:** Make sense of your results and adjust course
 
-* Record all test outcomes, both positive and negative results
-* Analyze patterns and correlations in the data
-* Refine hypotheses based on new evidence
-* Document lessons learned and knowledge gained
-* Maintain detailed troubleshooting logs for future reference
+- Record everything - successes and failures both matter
+- Look for patterns in what you're seeing
+- Update your theories based on new information
+- Document what you learned for next time
+- Keep detailed notes of your troubleshooting journey
 
 ==== 6. Solution Implementation and Verification
-*Objective*: Apply fixes and confirm complete resolution
+**What to do:** Implement the solution and make sure it works
 
-* Implement the most appropriate solution based on analysis
-* Apply changes incrementally and monitor impact
-* Verify that the original problem is completely resolved
-* Confirm that the fix doesn't introduce new issues
-* Document the final solution and prevention measures
+- Apply the fix that makes the most sense based on your analysis
+- Make changes gradually and watch the impact
+- Confirm the original problem is completely gone
+- Check that your fix didn't break anything else
+- Document the solution and how to prevent it in the future
 
 === Benefits of This Approach
 
-* *Reduces Resolution Time*: Systematic approach prevents unnecessary trial-and-error
-* *Improves Accuracy*: Evidence-based decisions lead to correct solutions
-* *Builds Knowledge*: Documented process creates reusable troubleshooting procedures
-* *Minimizes Risk*: Controlled testing prevents additional system disruption
-* *Enhances Skills*: Methodical practice develops expert-level troubleshooting abilities
+**Saves Time:** No more random guessing - you work with purpose
+**Gets Results:** Evidence-based decisions lead to the right answers
+**Builds Expertise:** Each problem teaches you something for the next one
+**Reduces Risk:** Controlled testing means fewer "oops" moments
+**Improves Confidence:** A clear process helps you tackle any problem
