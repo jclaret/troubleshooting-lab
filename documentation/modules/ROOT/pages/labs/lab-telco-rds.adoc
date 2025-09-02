@@ -223,10 +223,9 @@ No patched CRs
 
 === Solution Implementation
 
-[.collapsible]
+.Click to reveal the solution
+[%collapsible]
 ====
-*Click to reveal the solution*
-
 If you've completed your investigation or need guidance, here's the solution:
 
 [.lines_space]
