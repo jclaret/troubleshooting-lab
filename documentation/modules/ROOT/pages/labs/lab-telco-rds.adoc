@@ -166,7 +166,7 @@ For this lab exercise, we'll use a simplified metadata file focusing on essentia
 ----
 # Copy the simplified metadata file for lab exercise
 cp metadata_workshop.yaml out/reference/metadata_workshop.yaml
-cp 06-kdump-workshop.yaml out/source-crs/extra-manifest
+cp 06-kdump-workshop.yaml out/source-crs/extra-manifest out/reference/required/machine-config/kdump/06-kdump-worker.yaml
 
 # Review the metadata content
 cat out/reference/metadata_workshop.yaml
