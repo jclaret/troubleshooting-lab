@@ -1,0 +1,641 @@
+= GitOps Operator - Sync Flows
+include::../_attributes.adoc[]
+
+[[gitos]]
+== Lab Overview
+
+This lab focuses specifically on ArgoCD deployment scenarios and synchronization analysis. You'll learn essential techniques for tracking git commits processed by ArgoCD, analyzing sync patterns, examining sync history, and troubleshooting sync failures with detailed error analysis.
+
+=== Learning Objectives
+
+By completing this lab, you will be able to:
+
+* Check latest commits that ArgoCD has processed from Git repositories
+* Determine if application syncs are performed manually or automatically
+* Analyze ArgoCD application sync history and patterns
+* Map ArgoCD sync operations to specific Git commits
+* Investigate and resolve sync errors with detailed error message analysis
+
+== Exercise 1: Tracking Latest Commits Processed by ArgoCD
+
+=== Understanding ArgoCD Git Commit Processing
+
+ArgoCD continuously monitors Git repositories and processes commits based on configured policies. Understanding what commits have been processed is crucial for deployment tracking.
+
+=== Checking Latest Commits ArgoCD Has Processed
+
+Examine the current revision and commit information processed by ArgoCD:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check current revision synced by ArgoCD for all applications
+oc get applications.argoproj.io -A -o custom-columns="NAME:.metadata.name,NAMESPACE:.metadata.namespace,REVISION:.status.sync.revision,COMMIT:.status.sync.revision"
+
+# Get detailed commit information for a specific application
+APP_NAME="<application-name>"
+APP_NS="<argocd-namespace>"
+
+# Extract current synced revision (commit hash)
+CURRENT_REVISION=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.sync.revision}')
+echo "Current synced revision: $CURRENT_REVISION"
+
+# Get commit details including timestamp and author
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.sync}' | jq '.'
+
+# Check if there are newer commits available (target vs current revision)
+TARGET_REVISION=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.operationState.sync.revision}')
+echo "Target revision: $TARGET_REVISION"
+echo "Current revision: $CURRENT_REVISION"
+
+if [ "$TARGET_REVISION" != "$CURRENT_REVISION" ]; then
+    echo "⚠️  Application has newer commits available for sync"
+else
+    echo "✅ Application is synced to latest commit"
+fi
+----
+
+=== Advanced Commit Tracking with Git Repository Context
+
+Cross-reference ArgoCD processed commits with Git repository state:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Get comprehensive revision information
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o yaml | grep -A 10 -B 5 "revision\|sync"
+
+# Extract source repository and path information
+REPO_URL=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.source.repoURL}')
+REPO_PATH=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.source.path}')
+TARGET_REVISION=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.source.targetRevision}')
+
+echo "Repository: $REPO_URL"
+echo "Path: $REPO_PATH"
+echo "Target Branch/Tag: $TARGET_REVISION"
+echo "Last Synced Commit: $CURRENT_REVISION"
+
+# Check when the last sync occurred
+LAST_SYNC=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.operationState.finishedAt}')
+echo "Last sync completed: $LAST_SYNC"
+----
+
+== Exercise 2: Determining Manual vs Automatic Sync Configuration
+
+=== Understanding ArgoCD Sync Policies
+
+ArgoCD applications can be configured for automatic or manual synchronization. Identifying the sync policy helps understand deployment patterns.
+
+=== Checking Sync Policy Configuration
+
+Determine if applications are configured for manual or automatic synchronization:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check sync policy for all applications
+oc get applications.argoproj.io -A -o custom-columns="NAME:.metadata.name,NAMESPACE:.metadata.namespace,AUTO_SYNC:.spec.syncPolicy.automated" --sort-by=.metadata.name
+
+# Detailed sync policy analysis for specific application
+APP_NAME="<application-name>"
+APP_NS="<argocd-namespace>"
+
+# Check if automated sync is enabled
+AUTO_SYNC=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.syncPolicy.automated}')
+if [ "$AUTO_SYNC" != "null" ] && [ -n "$AUTO_SYNC" ]; then
+    echo "✅ Application '$APP_NAME' has AUTOMATIC sync enabled"
+    
+    # Check automated sync options
+    PRUNE=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.syncPolicy.automated.prune}')
+    SELF_HEAL=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.syncPolicy.automated.selfHeal}')
+    
+    echo "  - Prune enabled: $PRUNE"
+    echo "  - Self-heal enabled: $SELF_HEAL"
+else
+    echo "⚠️  Application '$APP_NAME' has MANUAL sync only"
+fi
+
+# Check sync options
+SYNC_OPTIONS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.syncPolicy.syncOptions[*]}')
+if [ -n "$SYNC_OPTIONS" ]; then
+    echo "Sync options: $SYNC_OPTIONS"
+fi
+----
+
+=== Analyzing Recent Sync Operations
+
+Determine whether recent syncs were triggered manually or automatically:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check operation state to determine sync trigger
+OPERATION_STATE=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.operationState}')
+echo "Operation State:"
+echo "$OPERATION_STATE" | jq '.'
+
+# Check if last operation was manually initiated
+INITIATED_BY=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.operationState.operation.initiatedBy}')
+if [ -n "$INITIATED_BY" ]; then
+    echo "Last sync initiated by: $INITIATED_BY"
+    USERNAME=$(echo "$INITIATED_BY" | jq -r '.username // "system"')
+    echo "User: $USERNAME"
+else
+    echo "Last sync was automatic (no manual initiator found)"
+fi
+
+# Check operation start time and compare with commit time
+OPERATION_START=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.operationState.startedAt}')
+echo "Operation started at: $OPERATION_START"
+----
+
+== Exercise 3: ArgoCD Application Sync History Analysis
+
+=== Understanding Sync History Importance
+
+ArgoCD maintains detailed history of all sync operations, enabling you to track deployment patterns, investigate failures, and understand application evolution over time.
+
+=== Examining Application Sync History
+
+Use both OpenShift commands and ArgoCD CLI to analyze sync history:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Install ArgoCD CLI if not already available
+curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+rm argocd-linux-amd64
+
+# Login to ArgoCD
+ARGOCD_SERVER=$(oc get route openshift-gitops-server -n openshift-gitops -o jsonpath='{.spec.host}')
+ARGOCD_PASSWORD=$(oc extract secret/openshift-gitops-cluster -n openshift-gitops --to=- --keys=admin.password)
+argocd login $ARGOCD_SERVER --username admin --password $ARGOCD_PASSWORD --insecure
+
+# View complete sync history for an application
+APP_NAME="<application-name>"
+argocd app history $APP_NAME
+
+# Get detailed history with timestamps and revisions
+argocd app history $APP_NAME --output wide
+
+# Export sync history to JSON for analysis
+argocd app get $APP_NAME -o json | jq '.status.history[]'
+----
+
+=== Analyzing Historical Sync Patterns
+
+Extract meaningful patterns from sync history data:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Using OpenShift commands to analyze sync history
+APP_NAME="<application-name>"
+APP_NS="<argocd-namespace>"
+
+# Get historical sync information from application status
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.history[*]}' | jq -s '.'
+
+# Count total number of syncs performed
+SYNC_COUNT=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.history[*]}' | jq -s '. | length')
+echo "Total sync operations: $SYNC_COUNT"
+
+# Extract sync history with timestamps
+echo "=== Sync History Analysis ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.history[] | "Sync ID: \(.id) | Deployed: \(.deployedAt) | Revision: \(.revision) | Source: \(.source.repoURL)"'
+
+# Identify most recent syncs (last 10)
+echo "=== Recent Sync Operations ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.history[-10:] | reverse[] | "[\(.deployedAt)] Revision: \(.revision[0:8]) | Source: \(.source.path // "root")"'
+----
+
+=== Sync Success Rate Analysis
+
+Analyze sync success patterns and failure rates:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Analyze sync operation outcomes
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.history[] | select(.deployedAt != null) | "Deployed: \(.deployedAt) | Revision: \(.revision[0:8])"' | wc -l
+
+# Check for any failed sync operations (these would be in conditions or operationState)
+echo "=== Checking for Sync Failures ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.conditions[]? | select(.type == "SyncError") | "Error: \(.message) | Last Transition: \(.lastTransitionTime)"'
+
+# Calculate average time between syncs
+echo "=== Sync Frequency Analysis ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.history[].deployedAt' | tail -5 | while read timestamp; do
+    echo "Sync timestamp: $timestamp"
+done
+----
+
+== Exercise 4: Mapping ArgoCD Syncs to Specific Git Commits
+
+=== Understanding Commit-to-Deployment Mapping
+
+Mapping ArgoCD sync operations to specific Git commits is crucial for tracking which code changes have been deployed and understanding the relationship between source code and running applications.
+
+=== Detailed Commit-to-Sync Mapping
+
+Create comprehensive mapping between Git commits and ArgoCD deployments:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Get comprehensive commit mapping for current application state
+APP_NAME="<application-name>"
+APP_NS="<argocd-namespace>"
+
+echo "=== Current Deployment to Git Commit Mapping ==="
+
+# Extract current revision and source information
+CURRENT_REVISION=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.sync.revision}')
+REPO_URL=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.source.repoURL}')
+REPO_PATH=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.source.path}')
+TARGET_REVISION=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.source.targetRevision}')
+
+echo "Repository: $REPO_URL"
+echo "Repository Path: $REPO_PATH"
+echo "Target Branch/Tag: $TARGET_REVISION" 
+echo "Current Synced Commit: $CURRENT_REVISION"
+
+# Get sync timestamp for correlation
+LAST_SYNC_TIME=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.operationState.finishedAt}')
+echo "Last Sync Completed: $LAST_SYNC_TIME"
+
+# Extract detailed commit information from application status
+echo -e "\n=== Detailed Commit Information ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  "Application: \(.metadata.name)",
+  "Namespace: \(.metadata.namespace)", 
+  "Current Commit: \(.status.sync.revision)",
+  "Sync Status: \(.status.sync.status)",
+  "Health Status: \(.status.health.status)",
+  "Last Sync: \(.status.operationState.finishedAt // "Never")"
+'
+----
+
+=== Historical Commit-to-Deployment Tracking
+
+Track which commits have been deployed over time:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Create comprehensive commit deployment timeline
+echo "=== Deployment Timeline with Git Commits ==="
+
+# Extract historical deployments with commit information
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.history[] | 
+  "[\(.deployedAt)] Commit: \(.revision[0:12]) | Path: \(.source.path // "root") | Repo: \(.source.repoURL | split("/")[-1] | split(".")[0])"
+' | sort
+
+# Compare current vs target revision
+echo -e "\n=== Current vs Target Revision Analysis ==="
+OPERATION_SYNC_REVISION=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.operationState.sync.revision}')
+
+if [ -n "$OPERATION_SYNC_REVISION" ] && [ "$OPERATION_SYNC_REVISION" != "$CURRENT_REVISION" ]; then
+    echo "⚠️  Sync operation in progress or failed"
+    echo "Target commit: $OPERATION_SYNC_REVISION"
+    echo "Current commit: $CURRENT_REVISION"
+else
+    echo "✅ Application synced to target commit: $CURRENT_REVISION"
+fi
+
+# Show manifest generation timestamp vs commit timestamp
+echo -e "\n=== Manifest Processing Information ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  "Manifest Generation: \(.status.sourceType // "Unknown")",
+  "Resources Count: \(.status.summary.externalURLs // [] | length)",
+  "Sync Revision: \(.status.sync.revision[0:12])"
+'
+----
+
+=== Cross-Reference with Git History
+
+Cross-reference ArgoCD deployments with actual Git commit history:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Create a script to correlate ArgoCD sync with Git commits
+cat << 'EOF' > git_argocd_correlation.sh
+#!/bin/bash
+
+APP_NAME="$1"
+APP_NS="${2:-openshift-gitops}"
+
+if [ -z "$APP_NAME" ]; then
+    echo "Usage: $0 <application-name> [argocd-namespace]"
+    exit 1
+fi
+
+echo "=== Git Commit to ArgoCD Deployment Correlation ==="
+echo "Application: $APP_NAME"
+echo "Namespace: $APP_NS"
+echo
+
+# Get repository information
+REPO_URL=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.spec.source.repoURL}')
+CURRENT_REVISION=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.sync.revision}')
+
+echo "Repository: $REPO_URL"
+echo "Current Deployed Commit: $CURRENT_REVISION"
+echo
+
+# Show recent deployment history with commits
+echo "=== Recent Deployments ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.history[-5:] | reverse[] | 
+  "[\(.deployedAt)] \(.revision[0:12])"
+' | while IFS=' ' read -r timestamp commit; do
+    echo "Deployed: $timestamp -> Commit: $commit"
+done
+
+# Show current sync status
+echo -e "\n=== Current Sync Status ==="
+SYNC_STATUS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.sync.status}')
+HEALTH_STATUS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.health.status}')
+
+echo "Sync Status: $SYNC_STATUS"
+echo "Health Status: $HEALTH_STATUS"
+
+if [ "$SYNC_STATUS" != "Synced" ]; then
+    echo "⚠️  Application is not in sync - manual intervention may be required"
+fi
+EOF
+
+chmod +x git_argocd_correlation.sh
+echo "Created git_argocd_correlation.sh script for commit correlation analysis"
+echo "Usage: ./git_argocd_correlation.sh <application-name> [argocd-namespace]"
+----
+
+== Exercise 5: Sync Error Analysis and Troubleshooting
+
+=== Understanding ArgoCD Sync Errors
+
+Sync errors in ArgoCD can occur due to various reasons including resource conflicts, permission issues, invalid manifests, or Git repository problems. Understanding error patterns is crucial for effective troubleshooting.
+
+=== Comprehensive Sync Error Investigation
+
+Systematically investigate sync errors with detailed error message analysis:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Identify applications with sync errors
+echo "=== Applications with Sync Errors ==="
+oc get applications.argoproj.io -A -o json | jq -r '
+  .items[] | 
+  select(.status.sync.status != "Synced") | 
+  "❌ \(.metadata.name) in \(.metadata.namespace): \(.status.sync.status)"
+'
+
+# Detailed error analysis for specific application
+APP_NAME="<application-name>"
+APP_NS="<argocd-namespace>"
+
+echo -e "\n=== Detailed Sync Error Analysis for $APP_NAME ==="
+
+# Check sync status and conditions
+SYNC_STATUS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.sync.status}')
+echo "Current Sync Status: $SYNC_STATUS"
+
+# Extract error conditions
+echo -e "\n=== Error Conditions ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.conditions[]? | 
+  select(.type == "ComparisonError" or .type == "SyncError") | 
+  "Type: \(.type)\nMessage: \(.message)\nLast Transition: \(.lastTransitionTime)\n---"
+'
+
+# Check operation state for sync errors
+echo -e "\n=== Operation State Errors ==="
+OPERATION_STATE=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.operationState}')
+if [ "$OPERATION_STATE" != "null" ] && [ -n "$OPERATION_STATE" ]; then
+    echo "$OPERATION_STATE" | jq -r '
+      "Phase: \(.phase)",
+      "Message: \(.message // "No message")",
+      "Started: \(.startedAt)",
+      "Finished: \(.finishedAt // "In progress")"
+    '
+fi
+----
+
+=== Detailed Error Message Analysis
+
+Extract and analyze specific error messages and their root causes:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Extract detailed sync operation errors
+echo "=== Sync Operation Error Details ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.operationState.sync.resources[]? |
+  select(.status != "Synced") |
+  "Resource: \(.kind)/\(.name)",
+  "Status: \(.status)", 
+  "Message: \(.message // "No specific message")",
+  "---"
+'
+
+# Check for resource-specific errors
+echo -e "\n=== Resource-Level Error Analysis ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.resources[]? |
+  select(.status != "Synced") |
+  "❌ \(.kind)/\(.name) in \(.namespace // "default"):",
+  "   Status: \(.status)",
+  "   Health: \(.health.status // "Unknown")",
+  "   Message: \(.health.message // "No health message")",
+  ""
+'
+
+# Analyze comparison errors (manifest vs cluster state)
+echo -e "\n=== Manifest Comparison Errors ==="
+COMPARISON_ERROR=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
+if [ -n "$COMPARISON_ERROR" ]; then
+    echo "Comparison Error Found:"
+    echo "$COMPARISON_ERROR"
+else
+    echo "✅ No comparison errors found"
+fi
+
+# Check for hook execution errors
+echo -e "\n=== Sync Hook Errors ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.operationState.sync.resources[]? |
+  select(.hookType != null and .status == "Failed") |
+  "Hook: \(.hookType) - \(.kind)/\(.name)",
+  "Status: \(.status)",
+  "Message: \(.message)",
+  "---"
+'
+----
+
+=== Common Sync Error Categories and Solutions
+
+Identify and resolve common categories of sync errors:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Create comprehensive error analysis script
+cat << 'EOF' > analyze_sync_errors.sh
+#!/bin/bash
+
+APP_NAME="$1"
+APP_NS="${2:-openshift-gitops}"
+
+if [ -z "$APP_NAME" ]; then
+    echo "Usage: $0 <application-name> [argocd-namespace]"
+    exit 1
+fi
+
+echo "=== Comprehensive Sync Error Analysis for $APP_NAME ==="
+
+# 1. Check basic sync status
+SYNC_STATUS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.sync.status}')
+HEALTH_STATUS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.health.status}')
+
+echo "Current Status:"
+echo "  Sync: $SYNC_STATUS"
+echo "  Health: $HEALTH_STATUS"
+echo
+
+# 2. Categorize error types
+echo "=== Error Category Analysis ==="
+
+# Check for permission errors
+PERMISSION_ERRORS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.conditions[]? | select(.message | test("permission|forbidden|unauthorized"; "i")) | .message')
+if [ -n "$PERMISSION_ERRORS" ]; then
+    echo "🔒 PERMISSION ERRORS DETECTED:"
+    echo "$PERMISSION_ERRORS"
+    echo "   Solution: Check RBAC permissions for ArgoCD service account"
+    echo
+fi
+
+# Check for resource conflicts
+CONFLICT_ERRORS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.conditions[]? | select(.message | test("conflict|already exists"; "i")) | .message')
+if [ -n "$CONFLICT_ERRORS" ]; then
+    echo "⚔️  RESOURCE CONFLICT ERRORS:"
+    echo "$CONFLICT_ERRORS"
+    echo "   Solution: Check for existing resources or enable pruning"
+    echo
+fi
+
+# Check for validation errors
+VALIDATION_ERRORS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.conditions[]? | select(.message | test("invalid|validation|schema"; "i")) | .message')
+if [ -n "$VALIDATION_ERRORS" ]; then
+    echo "📝 MANIFEST VALIDATION ERRORS:"
+    echo "$VALIDATION_ERRORS"
+    echo "   Solution: Validate YAML manifests and fix syntax errors"
+    echo
+fi
+
+# Check for Git repository errors  
+GIT_ERRORS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.conditions[]? | select(.message | test("git|repository|clone"; "i")) | .message')
+if [ -n "$GIT_ERRORS" ]; then
+    echo "📁 GIT REPOSITORY ERRORS:"
+    echo "$GIT_ERRORS"
+    echo "   Solution: Check repository URL, credentials, and network connectivity"
+    echo
+fi
+
+# 3. Show recent operation attempts
+echo "=== Recent Sync Attempts ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  if .status.operationState then
+    "Last Operation:",
+    "  Phase: \(.status.operationState.phase)",
+    "  Started: \(.status.operationState.startedAt)",
+    "  Finished: \(.status.operationState.finishedAt // "Still running")",
+    "  Message: \(.status.operationState.message // "No message")"
+  else
+    "No recent sync operations found"
+  end
+'
+
+echo
+echo "=== Recommended Actions ==="
+if [ "$SYNC_STATUS" != "Synced" ]; then
+    echo "1. Review error messages above for specific issues"
+    echo "2. Check ArgoCD server logs: oc logs -n openshift-gitops deployment/openshift-gitops-server"
+    echo "3. Check application controller logs: oc logs -n openshift-gitops deployment/openshift-gitops-application-controller"
+    echo "4. Manually trigger sync: argocd app sync $APP_NAME"
+    echo "5. Refresh application: argocd app get $APP_NAME --refresh"
+else
+    echo "✅ Application appears to be synced successfully"
+fi
+EOF
+
+chmod +x analyze_sync_errors.sh
+echo "Created analyze_sync_errors.sh script for comprehensive error analysis"
+echo "Usage: ./analyze_sync_errors.sh <application-name> [argocd-namespace]"
+
+# Example usage of the error analysis script
+# ./analyze_sync_errors.sh my-app openshift-gitops
+----
+
+=== ArgoCD Log Analysis for Sync Errors
+
+Analyze ArgoCD component logs for detailed sync error information:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check ArgoCD application controller logs for sync errors
+echo "=== ArgoCD Application Controller Logs ==="
+oc logs -n openshift-gitops deployment/openshift-gitops-application-controller --tail=100 | grep -i -E "(error|failed|sync.*$APP_NAME)"
+
+# Check ArgoCD server logs for sync-related errors
+echo -e "\n=== ArgoCD Server Logs ==="  
+oc logs -n openshift-gitops deployment/openshift-gitops-server --tail=100 | grep -i -E "(error|failed|sync.*$APP_NAME)"
+
+# Check repo server logs for Git-related issues
+echo -e "\n=== ArgoCD Repo Server Logs ==="
+oc logs -n openshift-gitops deployment/openshift-gitops-repo-server --tail=50 | grep -i -E "(error|failed|git|$APP_NAME)"
+
+# Monitor logs in real-time during sync operations
+echo -e "\n=== Real-time Log Monitoring ==="
+echo "To monitor logs during sync operations, run:"
+echo "oc logs -f -n openshift-gitops deployment/openshift-gitops-application-controller | grep -i $APP_NAME"
+----
+
+== Lab Summary
+
+This focused lab provided essential skills for ArgoCD deployment scenario analysis and sync troubleshooting. You've learned to:
+
+* Check and track the latest commits that ArgoCD has processed from Git repositories
+* Determine whether application syncs are performed manually or automatically through policy analysis
+* Analyze comprehensive ArgoCD application sync history and deployment patterns
+* Map ArgoCD sync operations to specific Git commits for complete deployment traceability
+* Investigate and resolve sync errors through detailed error message analysis and categorization
+
+These skills are essential for maintaining reliable GitOps deployments and ensuring smooth continuous delivery workflows in production environments.
+
+== Additional Resources
+
+* link:https://argo-cd.readthedocs.io/en/stable/[ArgoCD Official Documentation]
+* link:https://docs.openshift.com/gitops/[Red Hat OpenShift GitOps Documentation]
+* link:https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/[ArgoCD Sync Options and Strategies]
+* link:https://argo-cd.readthedocs.io/en/stable/operator-manual/health/[ArgoCD Health Assessment]
+* link:https://access.redhat.com/documentation/en-us/red_hat_openshift_gitops/[Red Hat OpenShift GitOps Troubleshooting Guide]
