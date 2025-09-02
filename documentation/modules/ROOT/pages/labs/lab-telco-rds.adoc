@@ -37,7 +37,8 @@ Key RDS components include:
 * *Network Configuration*: SR-IOV, DPDK, and high-performance networking
 
 === Setup Machine Config Pool
-Para este ejercicio y los siguiente crearemos un nodo y un MachineConfig Pool nuevo "workshop" para evitar esperar mucho tiempo durante los cambios que haremos en los nodos.
+
+For this exercise and the following ones, we'll create a new node and MachineConfig Pool called "workshop" to avoid waiting too long during the changes we'll make to the nodes.
 
 [.lines_space]
 [.console-input]
