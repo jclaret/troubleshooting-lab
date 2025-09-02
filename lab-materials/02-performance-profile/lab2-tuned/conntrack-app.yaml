@@ -1,7 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: conntrack-app
+  labels:
+    name: conntrack-app
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: conntrack-app
+  namespace: conntrack-app
   labels:
     app: conntrack-app
 spec:
@@ -24,6 +32,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: conntrack-app
+  namespace: conntrack-app
 spec:
   selector:
     app: conntrack-app
