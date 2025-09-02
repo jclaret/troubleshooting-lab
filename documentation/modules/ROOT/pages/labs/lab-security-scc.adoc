@@ -1,6 +1,8 @@
 = OpenShift Security - SCC Troubleshooting
 include::../_attributes.adoc[]
 
+:imagesdir: assets/images
+
 == Lab Overview
 
 This lab focuses on troubleshooting Security Context Constraints (SCC) issues when applications require elevated privileges to perform kernel-level operations. You'll learn to identify permission-related failures, understand SCC requirements for specific capabilities, and configure appropriate security contexts for applications that need to load kernel modules.
@@ -21,6 +23,52 @@ By completing this lab, you will be able to:
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/authentication_and_authorization/managing-security-context-constraints[Managing Security Context Constraints]
 * link:https://kubernetes.io/docs/concepts/security/pod-security-standards/[Kubernetes Pod Security Standards]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/authentication_and_authorization/understanding-and-creating-service-accounts[Understanding Service Accounts]
+
+== SCC Troubleshooting Commands
+
+When troubleshooting Security Context Constraints (SCC) issues, use these commands to investigate and resolve problems:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check all available SCCs
+oc get scc
+
+# Examine specific SCC details
+oc describe scc restricted-v2
+oc describe scc privileged
+
+# Check which SCC is applied to running pods
+oc get pods -o custom-columns="NAME:.metadata.name,SCC:.metadata.annotations.openshift\.io/scc"
+
+# Get pod security context details
+oc get pod -l app=kernel-mod-app -o jsonpath='{.items[0].spec.securityContext}'
+
+# Check ServiceAccount SCC bindings
+oc adm policy who-can use scc scc-sysmodule
+
+# View pod events for security-related issues
+oc get events --sort-by='.lastTimestamp' | grep -i "security\|scc\|capability"
+
+# Check pod logs for capability-related errors
+oc logs -l app=kernel-mod-app --tail=50 | grep -i "permission\|capability\|module"
+
+# Verify Linux capabilities in running container
+oc exec -n module-app deployment/kernel-mod-app -- cat /proc/self/status | grep CapEff
+
+# Test kernel module operations
+oc exec -n module-app deployment/kernel-mod-app -- lsmod
+oc exec -n module-app deployment/kernel-mod-app -- insmod /app/hello.ko
+oc exec -n module-app deployment/kernel-mod-app -- rmmod hello
+
+# Check SELinux context
+oc exec -n module-app deployment/kernel-mod-app -- id -Z
+
+# Verify ServiceAccount details
+oc get serviceaccount module-loader -o yaml
+oc describe serviceaccount module-loader
+----
 
 == Understanding Security Context Constraints
 
@@ -66,11 +114,11 @@ oc get pods -o custom-columns="NAME:.metadata.name,SCC:.metadata.annotations.ope
 * **seLinuxContext**: SELinux context requirements
 * **users/groups**: ServiceAccounts or users authorized to use the SCC
 
-== Exercise 1: Deploying Application with Insufficient Privileges
+== Exercise 1: Troubleshooting Kernel Module Application
 
-=== Problem Definition: Kernel Module Loading Failure
+=== Scenario Setup: Application Requiring Kernel Operations
 
-Navigate to the SCC troubleshooting lab and deploy the initial problematic configuration:
+Navigate to the SCC troubleshooting lab and deploy the exercise scenario:
 
 [source,bash]
 ----
@@ -80,91 +128,64 @@ cd troubleshooting-lab/lab-materials/03-sec-scc/lab1-module
 # Create a new namespace for better isolation
 oc new-project module-app
 
-# Deploy the application that requires kernel module loading
-oc apply -f module-app.yaml
+# Deploy the exercise scenario
+oc apply -k .
 
-# Verify deployment status
-oc get pods -n module-app
-oc describe deployment kernel-mod-app -n module-app
+# Monitor deployment status
+oc get pods -n module-app -w
 ----
-
-=== Information Gathering: Initial Problem Analysis
-
-Monitor the application and investigate any issues:
-
-[source,bash]
-----
-# Check pod status and events
-oc get pods -n module-app
-oc describe pod -l app=kernel-mod-app -n module-app
-
-# Examine pod logs for error messages
-oc logs -l app=kernel-mod-app -n module-app
-
-# Check which SCC is currently applied
-oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].metadata.annotations.openshift\.io/scc}'
-
-# Verify current security context
-oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].spec.securityContext}'
-
-# Verify the kernel module exists in the container
-oc exec -n module-app deployment/kernel-mod-app -- ls -la /app/hello.ko
-
-# Try to manually load the module (should fail)
-oc exec -n module-app deployment/kernel-mod-app -- insmod /app/hello.ko
-----
-
-=== Hypothesis Development: Understanding the Failure
-
-The application will likely fail to load the kernel module due to insufficient privileges. Investigate the specific error:
-
-== Exercise 2: Investigating SCC Requirements
 
 === Investigation Challenge
 
-Before looking at the solution, spend 15-20 minutes investigating:
+**YOUR MISSION**: Investigate the application behavior and identify any issues.
 
-1. **What Linux capability is required to load kernel modules?**
-2. **Which SCC is currently applied to the pod and why?**
-3. **What SCC features are needed for kernel module operations?**
-4. **How do you create a custom SCC for specific application requirements?**
+**What to check:**
 
-[TIP]
+- Does the application start successfully?
+- Are there any error messages in the logs?
+- What SCC is currently applied to the pod?
+- Can the application perform its intended operations?
+- Are there any permission-related failures?
+
+Use the troubleshooting commands provided earlier to investigate the application behavior.
+
+== Exercise 2: Resolving Security Context Issues
+
+=== Understanding the Problem
+
+If you discovered that the application is failing to load kernel modules, this indicates a Security Context Constraint (SCC) issue. The application requires specific Linux capabilities that are not available in the default SCC.
+
+=== Creating the Solution
+
+**YOUR MISSION**: Create the necessary security configuration to allow the application to function properly.
+
+**Steps to complete:**
+
+1. **Create a custom SCC** with the required capabilities
+2. **Create a ServiceAccount** for the application
+3. **Bind the ServiceAccount** to the custom SCC
+4. **Update the deployment** to use the new ServiceAccount
+
+The solution will create all necessary resources automatically.
+
+.Click to reveal the solution
+[%collapsible]
 ====
-💡 **Hint**: The application needs the `SYS_MODULE` capability to load kernel modules. Check the current SCC applied to the pod and compare it with the `privileged` SCC to understand what's missing.
-
-Key investigation commands:
-- `oc describe scc restricted-v2`
-- `oc get pod -l app=kernel-mod-app -n module-app -o yaml | grep -A 5 -B 5 scc`
-- `oc logs -l app=kernel-mod-app -n module-app | grep -i module`
-- Research Linux capabilities: `man 7 capabilities`
-====
-
-== Exercise 3: Creating Custom SCC and ServiceAccount
-
-=== Solution Implementation: Configuring Appropriate Security Context
+**Solution Implementation:**
 
 Apply the solution step by step:
 
 [source,bash]
 ----
-# Step 1: Create a custom SCC with SYS_MODULE capability
-oc apply -f solution/scc.yaml
+# Apply the complete solution
+oc apply -k solution/
 
-# Step 2: Create a ServiceAccount for the application
-oc create serviceaccount module-loader -n module-app
-
-# Step 3: Bind the ServiceAccount to the custom SCC
-oc adm policy add-scc-to-user scc-sysmodule -z module-loader -n module-app
-
-# Step 4: Verify the SCC binding
+# Verify the SCC binding
 oc adm policy who-can use scc scc-sysmodule
-
-# Step 5: Update the deployment to use the ServiceAccount
-oc apply -f solution/deployment.yaml -n module-app
 ----
+====
 
-=== Testing and Validation: Monitoring the Fix
+=== Verification
 
 Monitor the deployment rollout and verify the fix:
 
@@ -181,22 +202,9 @@ oc describe pod -l app=kernel-mod-app -n module-app | grep -A 10 "Security Conte
 
 # Check application logs for successful module loading
 oc logs -l app=kernel-mod-app -n module-app --tail=20
-----
-
-=== Verification and Documentation: Confirming Success
-
-Verify that the kernel module is now loaded successfully:
-
-[source,bash]
-----
-# Check if the module loaded successfully
-oc logs -l app=kernel-mod-app -n module-app | grep -i "hello"
 
 # Verify the module is loaded in the kernel
 oc exec -n module-app deployment/kernel-mod-app -- lsmod | grep hello
-
-# Check kernel messages
-oc exec -n module-app deployment/kernel-mod-app -- dmesg | tail -10
 
 # Verify the SYS_MODULE capability is present
 oc exec -n module-app deployment/kernel-mod-app -- cat /proc/self/status | grep CapEff

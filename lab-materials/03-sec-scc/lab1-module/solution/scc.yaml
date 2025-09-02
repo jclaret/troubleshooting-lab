@@ -12,5 +12,5 @@ seLinuxContext:
 fsGroup:
   type: RunAsAny
 users:
-- system:serviceaccount:default:default
+- system:serviceaccount:module-app:module-loader
 
