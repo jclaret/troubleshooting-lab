@@ -111,6 +111,7 @@ The application is not starting as expected. Use the troubleshooting commands pr
 Start by examining the application status and then investigate the Performance Profile configuration. Use the commands from the "Performance Profile Troubleshooting commands" section above.
 
 Key areas to investigate:
+
 - Application pod status and events
 - Performance Profile status and conditions
 - Node labels and Machine Config Pool configuration

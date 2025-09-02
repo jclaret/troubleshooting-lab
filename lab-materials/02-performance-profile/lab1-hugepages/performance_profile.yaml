@@ -15,4 +15,4 @@ spec:
   realTimeKernel:
     enabled: false
   nodeSelector:
-    node-role.kubernetes.io/performance: "fix-me"
+    node.role.kubernetes.io/performance: "fix-me"
