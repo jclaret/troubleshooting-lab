@@ -235,20 +235,17 @@ If you've completed your investigation or need guidance, here's the solution:
 # Apply RDS configuration example
 oc apply -f ./out/source-crs/extra-manifest/06-kdump-workshop.yaml
 
-# Watch the rollout
+# Watch/Wait the MCP rollout
 oc get mcp workshop
 
 # Verify compliance (run after rollout completes)
 oc cluster-compare -r out/reference/metadata_workshop.yaml
 ----
 
-[TIP]
-====
 **Understanding the problem:**
 - kdump is a kernel crash dumping mechanism
 - Required for telco RAN to capture crash dumps for root cause analysis
 - Missing configuration means crash dumps won't be captured during kernel panics
-====
 ====
 
 === Verification
