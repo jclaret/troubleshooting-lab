@@ -45,7 +45,9 @@ For this exercise and the following ones, we'll create a new node and MachineCon
 [source,bash, subs="+macros,+attributes"]
 ----
 # Scale up 1 nodes (5min)
-oc scale machinesets.machine.openshift.io cluster-kcjvr-v8ng6-worker-us-east-1c -n openshift-machine-api --replicas=5
+MACHINESET=$(oc get machinesets.machine.openshift.io -n openshift-machine-api -o name | head -1)
+echo "Using machineset: $MACHINESET"
+oc scale $MACHINESET -n openshift-machine-api --replicas=5
 oc get machines.machine.openshift.io -n openshift-machine-api
 oc get nodes
 
@@ -60,11 +62,27 @@ oc label node "$NODE" node-role.kubernetes.io/workshop="" --overwrite
 oc get node "$NODE" --show-labels | grep workshop
 
 # Create the MCP
+cd lab-materials/01-telco-rds
 oc apply -f machine_config_pool.yaml
 
-# Verify new MCP is created
+# Verify new MCP is created and updated
 oc get mcp
 ----
+
+[NOTE]
+====
+Expected output (takes 2-3 minutes):
+
+[source,bash]
+----
+oc get mcp workshop 
+NAME       CONFIG                                               UPDATED   UPDATING   DEGRADED   MACHINECOUNT   READYMACHINECOUNT   UPDATEDMACHINECOUNT   DEGRADEDMACHINECOUNT   AGE
+workshop   rendered-workshop-a34756497573708d31cb436f11ea8dee   True      False      False      1              1                   1                     0                      3m6s
+----
+
+The MCP is healthy when `UPDATED=True`, `UPDATING=False`, and `DEGRADED=False`. This indicates the machine configuration has been successfully applied to all nodes in the pool.
+====
+
 
 === Cluster-Compare Plugin Purpose
 
@@ -85,8 +103,6 @@ Navigate to the lab exercise directory and install the cluster-compare plugin:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Change to the telco RAN lab directory
-cd troubleshooting-lab/lab-materials/01-telco-rds
 
 # Create a container for the cluster-compare image
 podman create --name cca quay.io/jclaret/openshift4/kube-compare-artifacts-rhel9:latest
@@ -167,7 +183,7 @@ Run the cluster-compare plugin to identify configuration gaps against the RDS re
 [source,bash, subs="+macros,+attributes"]
 ----
 # Execute compliance comparison against simplified metadata
-oc cluster-compare -r out/reference/metadata_new.yaml
+oc cluster-compare -r out/reference/metadata_workshop.yaml
 ----
 
 === Analysis Results
@@ -189,11 +205,11 @@ CRs in reference missing from the cluster: 1
 required-machine-config:
   machine-config:
     Missing CRs:
-    - required/machine-config/kdump/06-kdump-workshop.yaml
+    - required/machine-config/kdump/06-kdump-worker.yaml
       Description:
         https://docs.openshift.com/container-platform/4.18/scalability_and_performance/telco_ref_design_specs/ran/telco-ran-ref-du-components.html#telco-ran-machine-configuration_ran-ref-design-components
 No CRs are unmatched to reference CRs
-Metadata Hash: 325a28a44f8a057b472c54d479989514ad17251be45d4a628682bc770576a57e
+Metadata Hash: dfdcc0a98940b59b6767a0c016e3a858a512df172cd37cbb11d7cf1ed9f83d40
 No patched CRs
 ----
 
@@ -201,20 +217,64 @@ No patched CRs
 
 === Investigation Challenge
 
-Before looking at the solution, spend 10-15 minutes investigating:
+[IMPORTANT]
+====
+**🎯 YOUR MISSION**: The cluster-compare output above shows a **configuration drift problem**. Your task is to:
 
-1. **What is kdump and why is it required for telco RAN?**
-2. **Where might the required YAML files be located?**
-3. **How do MachineConfig resources work in OpenShift?**
+1. **Understand the problem** - What exactly is missing and why is it critical?
+2. **Find the solution** - Locate the missing configuration file and apply it
+3. **Verify the fix** - Confirm the cluster is now compliant
+
+**Time Limit**: 10-15 minutes of investigation before checking the solution
+====
+
+=== Step-by-Step Investigation
+
+**Step 1: Analyze the Problem**
+Look at the cluster-compare output above and identify:
+- What specific component is missing from the cluster?
+- Why is this component required for telco RAN compliance?
+- What does "kdump" do and why is it critical for 5G workloads?
+
+**Step 2: Locate the Missing Configuration**
+The output shows the missing file path: `required/machine-config/kdump/06-kdump-worker.yaml`
+- Where might this file be located in the extracted reference bundle?
+- How can you find similar configuration files in the system?
+
+**Step 3: Plan Your Solution**
+- How do you apply a MachineConfig to fix this issue?
+- Which MachineConfigPool should receive this configuration?
+- How will you verify the fix worked?
+
 
 [TIP]
 ====
-💡 **Hint**: Explore the extracted reference bundle structure. Look for directories containing manifest files or configuration examples.
+💡 **Investigation Hints**:
 
-Try: `find out/source-crs/ -name "*kdump*" -type f`
+**Finding the missing file:**
+```bash
+# Look for kdump-related files in the extracted bundle
+find out/source-crs/ -name "*kdump*" -type f
+
+# Check the extra-manifest directory specifically
+ls -la out/source-crs/extra-manifest/
+
+# Look for files that might contain the missing configuration
+find out/ -name "*06-kdump*" -type f
+```
+
+**Understanding the problem:**
+- kdump is a kernel crash dumping mechanism
+- Required for telco RAN to capture crash dumps for root cause analysis
+- Missing configuration means crash dumps won't be captured during kernel panics
 ====
 
 === Solution Implementation
+
+[.collapsible]
+====
+[%collapsible]
+*Click to reveal the solution*
 
 If you've completed your investigation or need guidance, here's the solution:
 
@@ -273,6 +333,7 @@ No CRs are unmatched to reference CRs
 Metadata Hash: 325a28a44f8a057b472c54d479989514ad17251be45d4a628682bc770576a57e
 No patched CRs
 ----
+====
 
 == Lab Summary
 
