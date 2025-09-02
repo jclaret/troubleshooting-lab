@@ -243,8 +243,9 @@ oc cluster-compare -r out/reference/metadata_workshop.yaml
 ----
 
 **Understanding the problem:**
+
 - kdump is a kernel crash dumping mechanism
-- Required for telco RAN to capture crash dumps for root cause analysis
+- Required for telco RAN to capture crash dumps for root cause analysis  
 - Missing configuration means crash dumps won't be captured during kernel panics
 ====
 
