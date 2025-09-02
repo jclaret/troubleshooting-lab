@@ -42,15 +42,20 @@ oc get co
 # Validate node readiness and detailed information
 oc get nodes -o wide
 
+# Validate machine config pool status
+oc get machineconfigpool
+
 # Review all pods across namespaces for system-wide health
 oc get pods -A
 
-# Analyze recent cluster events for patterns or issues
-oc get events -A --sort-by=.lastTimestamp
+# Check cluster-wide events and alerts
+oc get events -A --sort-by=.lastTimestamp | head -20
+oc get events -A --field-selector type=Warning --sort-by=.lastTimestamp
 
 # Assess resource utilization at node and pod levels
 oc adm top nodes
 oc adm top pods -A
+
 ----
 
 === Interpreting Health Indicators
