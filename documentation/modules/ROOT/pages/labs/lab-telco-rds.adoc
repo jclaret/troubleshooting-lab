@@ -188,9 +188,7 @@ oc cluster-compare -r out/reference/metadata_workshop.yaml
 
 === Analysis Results
 
-The cluster-compare output will likely show non-compliant configurations, particularly missing kdump configurations required by the telco RAN specification. Common findings include:
-
-* Missing kdump MachineConfig for worker nodes  
+The cluster-compare output will likely show non-compliant configurations.
 
 Example expected output:
 [.lines_space]
@@ -215,10 +213,6 @@ No patched CRs
 
 == Exercise 4: Resolving Configuration Drift
 
-=== Investigation Challenge
-
-[IMPORTANT]
-====
 **🎯 YOUR MISSION**: The cluster-compare output above shows a **configuration drift problem**. Your task is to:
 
 1. **Understand the problem** - What exactly is missing and why is it critical?
@@ -227,25 +221,6 @@ No patched CRs
 
 **Time Limit**: 10-15 minutes of investigation before checking the solution
 ====
-
-=== Step-by-Step Investigation
-
-**Step 1: Analyze the Problem**
-Look at the cluster-compare output above and identify:
-- What specific component is missing from the cluster?
-- Why is this component required for telco RAN compliance?
-- What does "kdump" do and why is it critical for 5G workloads?
-
-**Step 2: Locate the Missing Configuration**
-The output shows the missing file path: `required/machine-config/kdump/06-kdump-worker.yaml`
-- Where might this file be located in the extracted reference bundle?
-- How can you find similar configuration files in the system?
-
-**Step 3: Plan Your Solution**
-- How do you apply a MachineConfig to fix this issue?
-- Which MachineConfigPool should receive this configuration?
-- How will you verify the fix worked?
-
 
 [TIP]
 ====
@@ -262,20 +237,19 @@ ls -la out/source-crs/extra-manifest/
 # Look for files that might contain the missing configuration
 find out/ -name "*06-kdump*" -type f
 ```
+====
 
 **Understanding the problem:**
 - kdump is a kernel crash dumping mechanism
 - Required for telco RAN to capture crash dumps for root cause analysis
 - Missing configuration means crash dumps won't be captured during kernel panics
-====
+
 
 === Solution Implementation
 
-[.collapsible]
-====
 [%collapsible]
-*Click to reveal the solution*
-
+.Click to reveal the solution
+====
 If you've completed your investigation or need guidance, here's the solution:
 
 [.lines_space]
@@ -293,6 +267,7 @@ oc cluster-compare -r out/reference/metadata_workshop.yaml
 ----
 
 ==== Monitor Drain Progress
+
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
@@ -309,13 +284,14 @@ oc logs -n openshift-machine-config-operator deployment/machine-config-controlle
 # Delete blocking pods
 oc delete pod <pod_name> -n <namespace> --force
 
-# Change PDB minAvailable from 1 to  0 - HyperShift Hosted Cluster
+# Change PDB minAvailable from 1 to 0 - HyperShift Hosted Cluster
 oc patch pdb etcd -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
 oc patch pdb kube-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
 oc patch pdb oauth-openshift -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
 oc patch pdb openshift-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
 oc patch pdb openshift-oauth-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
 ----
+====
 
 === Verification
 
