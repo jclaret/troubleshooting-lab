@@ -20,8 +20,6 @@ By completing this lab, you will be able to:
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/machine_configuration/index#mco-coreos-layering[Image Mode for OpenShift (4.19+)]
 * link:https://github.com/openshift/rhcos-image-layering-examples[RHCOS Image Layering Examples]
 
-explicabreve
-
 When troubleshooting RHCOS Image Layering issues, use these commands to investigate and resolve problems:
 
 [.lines_space]
@@ -200,6 +198,7 @@ oc debug node/$NODE -- chroot /host ethtool -i $INTERFACE
 **YOUR MISSION**: Test the network tool functionality and verify it's working correctly.
 
 **What to check:**
+
 - Does the ethtool command work as expected?
 - Can you retrieve network interface information?
 - Are there any errors or unexpected behavior?
@@ -242,6 +241,7 @@ oc apply -f machine-config-template.yaml
 [%collapsible]
 ====
 **Understanding the problem:**
+
 - The ethtool package version 99.0-1.el9 contains a critical bug
 - This prevents proper network interface management
 - RHCOS Image Layering can be used to deploy a hotfix with the corrected package version
