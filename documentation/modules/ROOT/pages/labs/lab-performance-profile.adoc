@@ -41,7 +41,9 @@ Performance Profiles are a high-level abstraction that configures OpenShift node
 
 After applying a Performance Profile, verify its status with the following commands:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check Performance Profile status
 oc get performanceprofile
@@ -61,11 +63,34 @@ oc debug node/<node-name> -- chroot /host cat /sys/kernel/mm/transparent_hugepag
 
 == Exercise 1: Troubleshooting Huge Pages Application Failure
 
+=== Setup Machine Config Pool
+
+For this exercise and the following ones, we'll create a new node and MachineConfig Pool called "mcp-hugepages" to avoid waiting too long during the changes we'll make to the nodes.
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Get the machineset name automatically
+oc get machinesets.machine.openshift.io -n openshift-machine-api
+
+# Scale up 1 additional node using the machineset name
+MACHINESET=$(oc get machinesets.machine.openshift.io -n openshift-machine-api -o name | head -1)
+echo "Using machineset: $MACHINESET"
+oc scale $MACHINESET -n openshift-machine-api --replicas=5
+
+# Verify the new machine is being created
+oc get machines.machine.openshift.io -n openshift-machine-api
+oc get nodes
+----
+
 === Application Stuck in Pending State
 
 Navigate to the first lab scenario:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Change to the performance profile lab directory
 cd troubleshooting-lab/lab-materials/02-performance-profile/lab1-hugepages
@@ -82,13 +107,10 @@ ls -la
 
 Deploy the initial problematic configuration:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
-# Scale up 1 nodes (5min)
-oc scale machinesets.machine.openshift.io cluster-kcjvr-v8ng6-worker-us-east-1c -n openshift-machine-api --replicas=5
-oc get machines.machine.openshift.io -n openshift-machine-api
-oc get nodes
-
 # Apply the Performance Profile with incorrect configuration
 oc apply -f performance_profile.yaml
 
@@ -123,11 +145,16 @@ Key commands to investigate:
 - `oc get mcp`
 ====
 
-=== Solution Implementation: Fixing the Configuration
+=== Solution Implementation
 
+.Click to reveal the solution
+[%collapsible]
+====
 If you've completed your investigation, here's the solution:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Create a new Machine Config Pool and update Performance Profile
 cd solution
@@ -150,12 +177,15 @@ oc get performanceprofile lab1-hugepages
 # Monitor MachineConfigPool rollout
 oc get mcp mcp-hugepages -w
 ----
+====
 
-=== Verification and Documentation: Confirming Success
+=== Verification
 
 Verify that the huge pages application now starts successfully:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Verify application is now running
 oc get pods -n hugepages-web
@@ -172,7 +202,9 @@ oc get route hugepages-web -n hugepages-web -o jsonpath='{.spec.host}{"\n"}'
 
 Navigate to the second lab scenario:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Change to the second performance profile lab directory
 cd troubleshooting-lab/lab-materials/02-performance-profile/lab2-tuned
@@ -191,10 +223,16 @@ ls -la
 
 Deploy the application that requires custom kernel parameters:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
-# Scale up 1 nodes (5min)
-oc scale machinesets.machine.openshift.io cluster-kcjvr-v8ng6-worker-us-east-1c -n openshift-machine-api --replicas=6
+# Scale up 1 additional node using the machineset name
+MACHINESET=$(oc get machinesets.machine.openshift.io -n openshift-machine-api -o name | head -1)
+echo "Using machineset: $MACHINESET"
+oc scale $MACHINESET -n openshift-machine-api --replicas=6
+
+# Verify the new machine is being created
 oc get machines.machine.openshift.io -n openshift-machine-api
 oc get nodes
 
@@ -247,11 +285,16 @@ Spend time investigating the Tuned profile degradation:
 Check the events and conditions in the Tuned profile status.
 ====
 
-=== Solution Implementation: Fixing the Tuned Profile
+=== Solution Implementation
 
+.Click to reveal the solution
+[%collapsible]
+====
 Apply the corrected Tuned profile:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Remove the broken Tuned profile
 oc solution
@@ -263,12 +306,15 @@ oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
 # Wait for profile to show as APPLIED=True, DEGRADED=False
 oc get profile <node-profile-name> -n openshift-cluster-node-tuning-operator -w
 ----
+====
 
-=== Verification and Documentation: Confirming Kernel Parameter Changes
+=== Verification
 
 Verify that the kernel parameter is correctly applied:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check updated kernel.pid_max value
 oc debug node/$NODE -- chroot /host sysctl kernel.pid_max
