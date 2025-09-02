@@ -10,7 +10,7 @@ spec:
       [main]
       summary=configuration-hotfixes
       # override performance addons generated tuned profile
-      include=openshift-node-performance-example-performanceprofile
+      include=openshift-node-performance-lab1-hugepages
       [video]
       enabled=false
       [sysctl]

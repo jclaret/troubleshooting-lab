@@ -54,12 +54,39 @@ oc get performanceprofiles.performance.openshift.io -o jsonpath='{.items[*].stat
 oc get profiles.tuned.openshift.io -A
 oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
 
+# Check Tuned CRDs and profiles
+oc get tuned -n openshift-cluster-node-tuning-operator
+
+# Check Node Tuning Operator pods
+oc get pod -n openshift-cluster-node-tuning-operator
+oc get pod -n openshift-cluster-node-tuning-operator -o wide
+
+# Get Node Tuning Operator logs
+NTO_POD=$(oc get pod -n openshift-cluster-node-tuning-operator -l name=cluster-node-tuning-operator -o jsonpath='{.items[0].metadata.name}')
+oc logs -n openshift-cluster-node-tuning-operator $NTO_POD -f
+
+# Check tuned daemon pods on specific nodes
+oc -n openshift-cluster-node-tuning-operator get pods -l openshift-app=tuned -o wide
+
+# Get nodes from workshop MCP
+oc get nodes -l node-role.kubernetes.io/workshop -o name
+
+# Get tuned pod running on each workshop node and check logs
+for N in $(oc get nodes -l node-role.kubernetes.io/workshop -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+  echo "=== Node: $N ==="
+  TUNED_POD=$(oc -n openshift-cluster-node-tuning-operator get pod -l openshift-app=tuned \
+    --field-selector spec.nodeName=$N -o jsonpath='{.items[0].metadata.name}')
+  echo "Tuned pod: $TUNED_POD"
+  oc logs -n openshift-cluster-node-tuning-operator $TUNED_POD -c tuned --tail=50
+done
+
 # Check related MachineConfig and MachineConfigPool status
 oc get mc,mcp,nodes -o wide
 
 # Verify huge pages configuration on nodes
 oc debug node/<node-name> -- chroot /host cat /proc/meminfo | grep -i huge
 oc debug node/<node-name> -- chroot /host cat /sys/kernel/mm/transparent_hugepage/enabled
+oc debug node/<node-name> -- chroot /host sysctl -n net.netfilter.nf_conntrack_max
 ----
 
 == Exercise 1: Troubleshooting Huge Pages Application
@@ -86,12 +113,8 @@ Deploy the application and the Performance Profile configuration:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Deploy the huge pages application
-oc new-project hugepages-web
-oc apply -f hugepages-web.yaml
-
-# Apply the Performance Profile configuration
-oc apply -f performance_profile.yaml
+# Deploy the huge pages application and configuration
+oc apply -k .
 
 # Check application status
 oc get pods -n hugepages-web
@@ -131,7 +154,7 @@ If you've completed your investigation, here's the solution:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Update the Performance Profile to use the workshop MCP
-oc replace -f solution/performance_profile.yaml
+oc apply -k solution/
 
 # Wait for Performance Profile to be applied
 oc get performanceprofile lab1-hugepages -o yaml
@@ -164,6 +187,8 @@ image::hugepages-app.png[]
 
 === Scenario Setup: Application Requiring Custom Kernel Parameters
 
+You need to deploy an application that requires custom kernel parameters for optimal performance. The application has been configured with a Tuned profile, but there seems to be an issue with the configuration.
+
 Navigate to the second lab scenario:
 
 [.lines_space]
@@ -172,15 +197,6 @@ Navigate to the second lab scenario:
 ----
 # Change to the second performance profile lab directory
 cd troubleshooting-lab/lab-materials/02-performance-profile/lab2-tuned
-
-# Review the provided files
-ls -la
-
-# Expected files:
-- conntrack-app.yaml (Application requiring custom kernel.pid_max)
-- machine_config_pool.yaml (New machine config pool)
-- performance_profile.yaml (New Performace Profile)
-- tuned.yaml (Tuned profile)
 ----
 
 === Deploying the Application
@@ -191,31 +207,8 @@ Deploy the application and its configuration:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Label a worker node for the workshop MCP
-NODE=$(oc get nodes -l node-role.kubernetes.io/worker --sort-by=.metadata.creationTimestamp | tail -1 | awk '{print $1}')
-echo "Selected node: $NODE"
-
-# Add workshop label to the node
-oc label node "$NODE" node-role.kubernetes.io/workshop="" --overwrite
-
-# Verify node labeling
-oc get node "$NODE" --show-labels | grep workshop
-
-# Deploy the application and configuration
-oc apply -f conntrack-app.yaml
-oc apply -f performance_profile.yaml
-oc apply -f tuned.yaml
-
-# Monitor MachineConfigPool rollout
-oc get mcp workshop
-oc get nodes
-
-# Wait for Performance Profile to be applied
-oc get performanceprofile lab2-conntrack
-
-# Deploy the conntrack application
-oc new-project conntrack-app
-oc apply -f conntrack-app.yaml
+# Deploy the application and Tuned configuration
+oc apply -k .
 
 # Check application status
 oc get pods -n conntrack-app
@@ -230,10 +223,11 @@ oc logs deployment/conntrack-app -n conntrack-app
 **Step-by-Step Investigation:**
 1. **What is the current status of the application pods?**
 2. **Are there any errors in the pod logs or events?**
-3. **What is the status of the Performance Profile and Tuned configuration?**
-4. **Are there any configuration mismatches or syntax errors?**
+3. **What is the status of the Tuned CRD and profiles?**
+4. **Are there any errors in the Node Tuning Operator logs?**
+5. **What do the tuned daemon logs show on the nodes?**
 
-Use the troubleshooting commands from the "Performance Profile Troubleshooting commands" section above to investigate the issue systematically.
+Use the troubleshooting commands from the "Performance Profile Troubleshooting commands" section above to investigate the issue systematically. Focus on CRDs and operator logs.
 
 === Solution Implementation
 
@@ -242,8 +236,8 @@ Use the troubleshooting commands from the "Performance Profile Troubleshooting c
 ====
 **Understanding the problem:**
 - The Tuned profile has syntax errors in the kernel parameter configuration
-- The `kernel.pid_max` parameter value is incorrectly formatted
-- This prevents the Performance Profile from applying correctly
+- The `net.netfilter.nf_conntrack_max` parameter value is incorrectly formatted
+- This prevents the Tuned profile from being applied correctly by the Node Tuning Operator
 
 **Solution Implementation:**
 Apply the corrected Tuned profile:
@@ -256,10 +250,15 @@ Apply the corrected Tuned profile:
 oc delete -f tuned.yaml
 
 # Apply the corrected Tuned profile
-oc apply -f solution/tuned.yaml
+oc apply -k solution/
 
-# Monitor profile application
+# Monitor Tuned CRD and profile application
+oc get tuned -n openshift-cluster-node-tuning-operator
 oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
+
+# Check Node Tuning Operator logs for any errors
+NTO_POD=$(oc get pod -n openshift-cluster-node-tuning-operator -l name=cluster-node-tuning-operator -o jsonpath='{.items[0].metadata.name}')
+oc logs -n openshift-cluster-node-tuning-operator $NTO_POD --tail=20
 
 # Wait for profile to show as APPLIED=True, DEGRADED=False
 oc get profile <node-profile-name> -n openshift-cluster-node-tuning-operator -w
@@ -274,8 +273,9 @@ Verify that the kernel parameter is correctly applied:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Check updated kernel.pid_max value
-oc debug node/$NODE -- chroot /host sysctl kernel.pid_max
+# Check updated net.netfilter.nf_conntrack_max value on a workshop node
+NODE=$(oc get nodes -l node-role.kubernetes.io/workshop -o jsonpath='{.items[0].metadata.name}')
+oc debug node/$NODE -- chroot /host sysctl net.netfilter.nf_conntrack_max
 
 # Restart the application to pick up new kernel parameters
 oc rollout restart deployment/conntrack-app -n conntrack-app
