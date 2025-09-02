@@ -156,7 +156,7 @@ oc rollout status deployment/hugepages-web -n hugepages-web
 oc get route hugepages-web -n hugepages-web -o jsonpath='{.spec.host}{"\n"}'
 # curl http://<route-url> or open in browser
 
-image::images/hugepages-app.png[]
+image::assets/images/hugepages-app.png[]
 ----
 
 == Exercise 2: Troubleshooting Kernel Parameter Tuning
