@@ -3,6 +3,6 @@ kind: MachineConfig
 metadata:
   labels:
     machineconfiguration.openshift.io/role: workshop
-  name: 99-network-tools-worker
+  name: 99-network-tools-fix-worker
 spec:
-  osImageURL: quay.io/jclaret/lab/ethtool-6.2-99.el9.x86_64:4.16.30
+  osImageURL: quay.io/jclaret/lab/ethtool-6.2-1.el9.x86_64:4.16.30

@@ -1,8 +1,0 @@
-apiVersion: machineconfiguration.openshift.io/v1
-kind: MachineConfig
-metadata:
-  labels:
-    machineconfiguration.openshift.io/role: new-mcp
-  name: 99-ethtool-fix
-spec:
-  osImageURL: registry.offline.lab:5000/lab/ethtool-6.2-1.el9.x86_64:4.16.30
