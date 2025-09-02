@@ -238,6 +238,9 @@ oc apply -f ./out/source-crs/extra-manifest/06-kdump-workshop.yaml
 # Watch/Wait the MCP rollout
 oc get mcp workshop
 
+# It will restart the node
+oc get nodes
+
 # Verify compliance (run after rollout completes)
 oc cluster-compare -r out/reference/metadata_workshop.yaml
 ----
