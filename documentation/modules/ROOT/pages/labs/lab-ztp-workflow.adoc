@@ -91,14 +91,52 @@ Common SiteConfig transformation problems include:
 3. **ArgoCD Sync Failures**: Git repository access issues or webhook problems
 4. **Resource Dependencies**: Missing prerequisites like ClusterImageSet or PullSecret
 
+**Best Practice**: Always start troubleshooting by locally validating your SiteConfig with `kustomize build --enable-alpha-plugins` before pushing to Git or investigating cluster-side issues.
+
 [TIP]
 ====
 💡 **Investigation Commands**:
+- **Local validation**: `kustomize build --enable-alpha-plugins /path/to/siteconfig/directory`
 - Check ArgoCD logs: `oc logs -n openshift-gitops deployment/openshift-gitops-application-controller`
 - Review ZTP site generator processing: `oc logs -n openshift-operators deployment/ztp-site-generate -f`
 - Validate generated manifests: `oc get <resource> -o yaml | less`
 - Check Git repository synchronization: `oc describe application <site-app> -n openshift-gitops`
 ====
+
+=== Local SiteConfig Validation and CR Extraction
+
+Before troubleshooting deployed resources, you can locally preview what CRs will be generated from a SiteConfig using the kustomize plugin:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Install kustomize if not available
+curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+sudo mv kustomize /usr/local/bin/
+
+# Clone the CNF features deploy repository for SiteConfig generator plugin
+git clone https://github.com/openshift-kni/cnf-features-deploy.git
+cd cnf-features-deploy/ztp/siteconfig-generator-kustomize-plugin
+
+# Extract generated CRs from SiteConfig locally (preview mode)
+kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory
+
+# Save generated manifests for analysis
+kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory > generated-resources.yaml
+
+# Analyze specific resource types that will be created
+kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory | grep -A 5 -B 5 "kind: ClusterDeployment"
+kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory | grep -A 5 -B 5 "kind: AgentClusterInstall"
+kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory | grep -A 5 -B 5 "kind: BareMetalHost"
+----
+
+This technique is invaluable for:
+
+* **Pre-deployment Validation**: Verify SiteConfig syntax and generated resource correctness
+* **Resource Debugging**: Identify malformed or missing resources before ArgoCD processing
+* **Template Understanding**: See exact resource specifications that will be applied
+* **Diff Analysis**: Compare expected vs. actual cluster state
 
 === Troubleshooting SiteConfig Processing
 
@@ -489,6 +527,7 @@ This comprehensive ZTP troubleshooting lab covered essential skills for managing
 == Additional Resources
 
 * link:https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.11/html-single/clusters/index#ztp-troubleshooting_ztp-gitops[ZTP Troubleshooting Documentation]
+* link:https://github.com/openshift-kni/cnf-features-deploy/blob/master/ztp/siteconfig-generator-kustomize-plugin/README.md[SiteConfig Generator Kustomize Plugin]
 * link:https://metal3.io/documentation/[Metal³ Documentation]
 * link:https://docs.redhat.com/en/documentation/assisted_installer_for_openshift_container_platform/2024/html-single/assisted_installer_for_openshift_container_platform/index[Assisted Installer Documentation]
 * link:https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.11/html-single/clusters/index#gitops-ztp[GitOps ZTP Complete Guide]
