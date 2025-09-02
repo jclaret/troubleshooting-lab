@@ -36,7 +36,6 @@ Performance Profiles are a high-level abstraction that configures OpenShift node
 * **NUMA Topology**: Non-Uniform Memory Access configuration for memory locality
 * **Kernel Parameters**: Low-level system tuning for performance optimization
 
-
 === Performance Profile Troubleshooting commands
 
 After applying a Performance Profile, verify its status with the following commands:
@@ -47,11 +46,12 @@ After applying a Performance Profile, verify its status with the following comma
 ----
 # Check Performance Profile status
 oc get performanceprofile
-oc get performanceprofiles.performance.openshift.io -o yaml
+oc get performanceprofile -o yaml
+oc get performanceprofiles.performance.openshift.io -o jsonpath='{.items[*].status.conditions[?(@.type=="Degraded")]}' | jq 'select(.status=="True")'
 
 # Verify generated Tuned profiles
 oc get profiles.tuned.openshift.io -A
-oc get profile -n openshift-cluster-node-tuning-operator
+oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
 
 # Check related MachineConfig and MachineConfigPool status
 oc get mc,mcp,nodes -o wide
@@ -61,32 +61,13 @@ oc debug node/<node-name> -- chroot /host cat /proc/meminfo | grep -i huge
 oc debug node/<node-name> -- chroot /host cat /sys/kernel/mm/transparent_hugepage/enabled
 ----
 
-== Exercise 1: Troubleshooting Huge Pages Application Failure
+== Exercise 1: Troubleshooting Huge Pages Application
 
-=== Setup Machine Config Pool
+=== Scenario Setup
 
-For this exercise and the following ones, we'll create a new node and MachineConfig Pool called "mcp-hugepages" to avoid waiting too long during the changes we'll make to the nodes.
+You need to deploy an application that requires huge pages for optimal performance. The application has been configured to request huge pages resources, but there seems to be an issue with the deployment.
 
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Get the machineset name automatically
-oc get machinesets.machine.openshift.io -n openshift-machine-api
-
-# Scale up 1 additional node using the machineset name
-MACHINESET=$(oc get machinesets.machine.openshift.io -n openshift-machine-api -o name | head -1)
-echo "Using machineset: $MACHINESET"
-oc scale $MACHINESET -n openshift-machine-api --replicas=5
-
-# Verify the new machine is being created
-oc get machines.machine.openshift.io -n openshift-machine-api
-oc get nodes
-----
-
-=== Application Stuck in Pending State
-
-Navigate to the first lab scenario:
+Navigate to the lab scenario:
 
 [.lines_space]
 [.console-input]
@@ -94,55 +75,46 @@ Navigate to the first lab scenario:
 ----
 # Change to the performance profile lab directory
 cd troubleshooting-lab/lab-materials/02-performance-profile/lab1-hugepages
-
-# Review the provided files
-ls -la
-
-# Expected files:
- - performance_profile.yaml (Performance Profile with incorrect MCP selector)
- - hugepages-web.yaml (Application requiring huge pages)
 ----
 
-=== Initial Problem Analysis
+=== Deploying the Application
 
-Deploy the initial problematic configuration:
+Deploy the application and the Performance Profile configuration:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Apply the Performance Profile with incorrect configuration
-oc apply -f performance_profile.yaml
-
 # Deploy the huge pages application
 oc new-project hugepages-web
 oc apply -f hugepages-web.yaml
 
+# Apply the Performance Profile configuration
+oc apply -f performance_profile.yaml
+
 # Check application status
 oc get pods -n hugepages-web
-oc describe pod -n hugepages-web
-
-# Check Performance Profile status
-oc get performanceprofile lab1-hugepages -o yaml
 ----
 
 === Investigation Challenge
 
-Before looking at the solution, spend 10-20 minutes investigating:
+The application is not starting as expected. Use the troubleshooting commands provided at the beginning of this lab to investigate the issue.
 
-1. **What is the relationship between Performance Profiles and Machine Config Pools?**
-2. **Why is the Performance Profile not being applied to nodes?**
-3. **What node labels are required for the Performance Profile to work?**
-4. **How do you create a new Machine Config Pool for performance nodes?**
+**Your task**: Identify why the application is not running and resolve the problem.
+
+**Time limit**: 15-20 minutes of investigation before checking the solution.
 
 [TIP]
 ====
-💡 **Hint**: Check the `nodeSelector` in the Performance Profile and compare it with existing node labels. The Performance Profile needs nodes with matching labels AND a corresponding Machine Config Pool. Use the last provisioned node to solve this exercise, don't use current MCPs.
+💡 **Investigation approach**: 
 
-Key commands to investigate:
-- `oc describe performanceprofile example-performanceprofile`
-- `oc get nodes --show-labels`
-- `oc get mcp`
+Start by examining the application status and then investigate the Performance Profile configuration. Use the commands from the "Performance Profile Troubleshooting commands" section above.
+
+Key areas to investigate:
+- Application pod status and events
+- Performance Profile status and conditions
+- Node labels and Machine Config Pool configuration
+- Huge pages availability on nodes
 ====
 
 === Solution Implementation
@@ -156,26 +128,14 @@ If you've completed your investigation, here's the solution:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Create a new Machine Config Pool and update Performance Profile
-cd solution
-oc apply -f machine_config_pool.yaml
-oc apply -f performance_profile.yaml
-
-# Label a worker node for the new MCP
-NODE=$(oc get nodes -l node-role.kubernetes.io/worker --sort-by=.metadata.creationTimestamp | tail -1 | awk '{print $1}')
-echo "Selected node: $NODE"
-
-# Remove worker label and add new-mcp label
-oc label node "$NODE" node-role.kubernetes.io/mcp-hugepages="" --overwrite
-
-# Verify node labeling
-oc get node "$NODE" --show-labels | grep mcp-hugepages
+# Update the Performance Profile to use the workshop MCP
+oc replace -f solution/performance_profile.yaml
 
 # Wait for Performance Profile to be applied
-oc get performanceprofile lab1-hugepages
+oc get performanceprofile lab1-hugepages -o yaml
 
 # Monitor MachineConfigPool rollout
-oc get mcp mcp-hugepages -w
+oc get mcp workshop -w
 ----
 ====
 
@@ -194,6 +154,8 @@ oc rollout status deployment/hugepages-web -n hugepages-web
 # Access the application to verify huge pages configuration
 oc get route hugepages-web -n hugepages-web -o jsonpath='{.spec.host}{"\n"}'
 # curl http://<route-url> or open in browser
+
+image::images/hugepages-app.png[]
 ----
 
 == Exercise 2: Troubleshooting Kernel Parameter Tuning
