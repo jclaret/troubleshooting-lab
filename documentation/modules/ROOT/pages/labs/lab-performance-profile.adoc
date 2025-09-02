@@ -13,7 +13,6 @@ This lab focuses on troubleshooting Performance Profile configurations in OpenSh
 By completing this lab, you will be able to:
 
 * Understand Performance Profile components and their purpose
-* Create and configure Performance Profiles using the Performance Profile Creator
 * Diagnose Performance Profile application failures
 * Resolve Machine Config Pool selector mismatches
 * Troubleshoot kernel parameter tuning with custom Tuned profiles
@@ -163,7 +162,7 @@ image::hugepages-app.png[]
 
 == Exercise 2: Troubleshooting Kernel Parameter Tuning
 
-=== Problem Definition: Application Requiring Custom Kernel Parameters
+=== Scenario Setup: Application Requiring Custom Kernel Parameters
 
 Navigate to the second lab scenario:
 
@@ -184,40 +183,31 @@ ls -la
 - tuned.yaml (Tuned profile)
 ----
 
-=== Deploying the Second application
+=== Deploying the Application
 
-Deploy the application that requires custom kernel parameters:
+Deploy the application and its configuration:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Scale up 1 additional node using the machineset name
-MACHINESET=$(oc get machinesets.machine.openshift.io -n openshift-machine-api -o name | head -1)
-echo "Using machineset: $MACHINESET"
-oc scale $MACHINESET -n openshift-machine-api --replicas=6
-
-# Verify the new machine is being created
-oc get machines.machine.openshift.io -n openshift-machine-api
-oc get nodes
-
-# Label a worker node for the new MCP
+# Label a worker node for the workshop MCP
 NODE=$(oc get nodes -l node-role.kubernetes.io/worker --sort-by=.metadata.creationTimestamp | tail -1 | awk '{print $1}')
 echo "Selected node: $NODE"
 
-# Remove worker label and add new-mcp label
-oc label node "$NODE" node-role.kubernetes.io/mcp-conntrack="" --overwrite
+# Add workshop label to the node
+oc label node "$NODE" node-role.kubernetes.io/workshop="" --overwrite
 
 # Verify node labeling
-oc get node "$NODE" --show-labels | grep mcp-conntrack
+oc get node "$NODE" --show-labels | grep workshop
 
-# Create a new Machine Config Pool and update Performance Profile
-oc apply -f machine_config_pool.yaml
+# Deploy the application and configuration
+oc apply -f conntrack-app.yaml
 oc apply -f performance_profile.yaml
 oc apply -f tuned.yaml
 
 # Monitor MachineConfigPool rollout
-oc get mcp mcp-conntrack
+oc get mcp workshop
 oc get nodes
 
 # Wait for Performance Profile to be applied
@@ -233,28 +223,29 @@ oc describe pod -n conntrack-app
 oc logs deployment/conntrack-app -n conntrack-app
 ----
 
-The application will fail with an error indicating incorrect `conntrack` value.
-
 === Investigation Challenge
 
-Spend time investigating the Tuned profile degradation:
+**YOUR MISSION**: Investigate why the application is not starting correctly and resolve the configuration issues.
 
-1. **Why is the Tuned profile showing as DEGRADED?**
-2. **What syntax errors exist in the Tuned configuration?**
-3. **How do custom Tuned profiles inherit from Performance Profile base configurations?**
+**Step-by-Step Investigation:**
+1. **What is the current status of the application pods?**
+2. **Are there any errors in the pod logs or events?**
+3. **What is the status of the Performance Profile and Tuned configuration?**
+4. **Are there any configuration mismatches or syntax errors?**
 
-[TIP]
-====
-💡 **Hint**: Look for invalid parameter values or syntax errors in the Tuned profile. The profile should inherit from the Performance Profile base configuration and override specific parameters.
-
-Check the events and conditions in the Tuned profile status.
-====
+Use the troubleshooting commands from the "Performance Profile Troubleshooting commands" section above to investigate the issue systematically.
 
 === Solution Implementation
 
 .Click to reveal the solution
 [%collapsible]
 ====
+**Understanding the problem:**
+- The Tuned profile has syntax errors in the kernel parameter configuration
+- The `kernel.pid_max` parameter value is incorrectly formatted
+- This prevents the Performance Profile from applying correctly
+
+**Solution Implementation:**
 Apply the corrected Tuned profile:
 
 [.lines_space]
@@ -262,8 +253,10 @@ Apply the corrected Tuned profile:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Remove the broken Tuned profile
-oc solution
-oc apply -f tuned.yaml
+oc delete -f tuned.yaml
+
+# Apply the corrected Tuned profile
+oc apply -f solution/tuned.yaml
 
 # Monitor profile application
 oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
