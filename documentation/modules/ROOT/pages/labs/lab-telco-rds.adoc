@@ -220,36 +220,14 @@ No patched CRs
 3. **Verify the fix** - Confirm the cluster is now compliant
 
 **Time Limit**: 10-15 minutes of investigation before checking the solution
-====
-
-[TIP]
-====
-💡 **Investigation Hints**:
-
-**Finding the missing file:**
-```bash
-# Look for kdump-related files in the extracted bundle
-find out/source-crs/ -name "*kdump*" -type f
-
-# Check the extra-manifest directory specifically
-ls -la out/source-crs/extra-manifest/
-
-# Look for files that might contain the missing configuration
-find out/ -name "*06-kdump*" -type f
-```
-====
-
-**Understanding the problem:**
-- kdump is a kernel crash dumping mechanism
-- Required for telco RAN to capture crash dumps for root cause analysis
-- Missing configuration means crash dumps won't be captured during kernel panics
-
 
 === Solution Implementation
 
-[%collapsible]
-.Click to reveal the solution
+[.collapsible]
 ====
+[%collapsible]
+*Click to reveal the solution*
+
 If you've completed your investigation or need guidance, here's the solution:
 
 [.lines_space]
@@ -266,31 +244,12 @@ oc get mcp workshop
 oc cluster-compare -r out/reference/metadata_workshop.yaml
 ----
 
-==== Monitor Drain Progress
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check which node is currently being drained
-oc get nodes
-
-# View detailed events for the problematic node
-oc describe node <node-name> | grep -A 20 Events
-
-# Check for pods blocking the drain
-oc logs -n openshift-machine-config-operator deployment/machine-config-controller -f
-
-# Delete blocking pods
-oc delete pod <pod_name> -n <namespace> --force
-
-# Change PDB minAvailable from 1 to 0 - HyperShift Hosted Cluster
-oc patch pdb etcd -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
-oc patch pdb kube-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
-oc patch pdb oauth-openshift -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
-oc patch pdb openshift-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
-oc patch pdb openshift-oauth-apiserver -n local-cluster-development -p '{"spec":{"minAvailable":0}}'
-----
+[TIP]
+====
+**Understanding the problem:**
+- kdump is a kernel crash dumping mechanism
+- Required for telco RAN to capture crash dumps for root cause analysis
+- Missing configuration means crash dumps won't be captured during kernel panics
 ====
 
 === Verification
