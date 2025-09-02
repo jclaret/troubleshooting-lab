@@ -16,6 +16,8 @@ spec:
     metadata:
       labels: { app: hugepages-web }
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/workshop: ""
       containers:
         - name: web
           image: quay.io/jclaret/lab/hugepages-web:latest

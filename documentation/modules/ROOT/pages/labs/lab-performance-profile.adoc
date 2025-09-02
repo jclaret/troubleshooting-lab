@@ -87,6 +87,9 @@ oc get mc,mcp,nodes -o wide
 oc debug node/<node-name> -- chroot /host cat /proc/meminfo | grep -i huge
 oc debug node/<node-name> -- chroot /host cat /sys/kernel/mm/transparent_hugepage/enabled
 oc debug node/<node-name> -- chroot /host sysctl -n net.netfilter.nf_conntrack_max
+
+# 
+oc explain PerformanceProfile.spec.nodeSelector
 ----
 
 == Exercise 1: Troubleshooting Huge Pages Application
@@ -154,7 +157,7 @@ If you've completed your investigation, here's the solution:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Update the Performance Profile to use the workshop MCP
-oc apply -k solution/
+oc replace -k solution/
 
 # Wait for Performance Profile to be applied
 oc get performanceprofile lab1-hugepages -o yaml
@@ -162,6 +165,22 @@ oc get performanceprofile lab1-hugepages -o yaml
 # Monitor MachineConfigPool rollout
 oc get mcp workshop -w
 ----
+
+En la configuracion desplegada encontraremos errores del tipo 
+
+      message: failed to find MCP with the node selector that matches labels "node.role.kubernetes.io/performance=fix-me"
+      reason: GettingMachineConfigPoolFailed
+      status: "True"
+      type: Degraded
+
+y 
+
+      message: failed to find MCP with the node selector that matches labels "node.role.kubernetes.io/workshop="
+      reason: GettingMachineConfigPoolFailed
+      status: "True"
+      type: Degraded
+
+Se espera que el nodo aplique la configuracion del Performance Profile y reinicie el nodo perteneciente al MCP workshop.
 ====
 
 === Verification
@@ -221,6 +240,7 @@ oc logs deployment/conntrack-app -n conntrack-app
 **YOUR MISSION**: Investigate why the application is not starting correctly and resolve the configuration issues.
 
 **Step-by-Step Investigation:**
+
 1. **What is the current status of the application pods?**
 2. **Are there any errors in the pod logs or events?**
 3. **What is the status of the Tuned CRD and profiles?**
@@ -235,6 +255,7 @@ Use the troubleshooting commands from the "Performance Profile Troubleshooting c
 [%collapsible]
 ====
 **Understanding the problem:**
+- The Tuned profile has a wrong MCP configuration
 - The Tuned profile has syntax errors in the kernel parameter configuration
 - The `net.netfilter.nf_conntrack_max` parameter value is incorrectly formatted
 - This prevents the Tuned profile from being applied correctly by the Node Tuning Operator
@@ -260,8 +281,12 @@ oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
 NTO_POD=$(oc get pod -n openshift-cluster-node-tuning-operator -l name=cluster-node-tuning-operator -o jsonpath='{.items[0].metadata.name}')
 oc logs -n openshift-cluster-node-tuning-operator $NTO_POD --tail=20
 
-# Wait for profile to show as APPLIED=True, DEGRADED=False
-oc get profile <node-profile-name> -n openshift-cluster-node-tuning-operator -w
+# Check Node Tuning pod logs for any errors
+oc get -n openshift-cluster-node-tuning-operator pods -o wide
+TUNED_POD=$(oc get pod -n openshift-cluster-node-tuning-operator -l openshift-app=tuned -o jsonpath='{.items[0].metadata.name}')
+oc logs -n openshift-cluster-node-tuning-operator $TUNED_POD
+
+ERROR    tuned.utils.commands: Writing to file '/proc/sys/net/netfilter/nf_conntrack_max' error: '[Errno 22] Invalid argument'
 ----
 ====
 

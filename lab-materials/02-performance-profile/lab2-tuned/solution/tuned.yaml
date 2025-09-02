@@ -10,13 +10,13 @@ spec:
       [main]
       summary=configuration-conntrack
       # override performance addons generated tuned profile
-      include=openshift-node-performance-example-performanceprofile
+      include=openshift-node-performance-lab1-hugepages
       [video]
       enabled=false
       [sysctl]
       net.netfilter.nf_conntrack_max=8388608
   recommend:
   - machineConfigLabels:
-      machineconfiguration.openshift.io/role: "mcp-conntrack"
+      machineconfiguration.openshift.io/role: "workshop"
     priority: 19
     profile: configuration-conntrack

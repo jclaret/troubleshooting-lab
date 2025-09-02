@@ -15,4 +15,4 @@ spec:
   realTimeKernel:
     enabled: false
   nodeSelector:
-    node-role.kubernetes.io/mcp-hugepages: ""
+    node-role.kubernetes.io/workshop: ""

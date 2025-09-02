@@ -1,23 +1,23 @@
 apiVersion: tuned.openshift.io/v1
 kind: Tuned
 metadata:
-  name: configuration-hotfixes
+  name: configuration-conntrack
   namespace: openshift-cluster-node-tuning-operator
 spec:
   profile:
-  - name: configuration-hotfixes
+  - name: configuration-conntrack
     data: |
       [main]
-      summary=configuration-hotfixes
+      summary=configuration-conntrack
       # override performance addons generated tuned profile
       include=openshift-node-performance-lab1-hugepages
       [video]
       enabled=false
       [sysctl]
-      net.netfilter.nf_conntrack_max=fix-me
+      net.netfilter.nf_conntrack_max=48-15162342
 
   recommend:
   - machineConfigLabels:
       machineconfiguration.openshift.io/role: "new-mcp"
     priority: 19
-    profile: configuration-hotfixes 
+    profile: configuration-conntrack 

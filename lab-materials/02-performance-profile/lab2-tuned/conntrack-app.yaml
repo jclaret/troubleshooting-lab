@@ -22,6 +22,8 @@ spec:
       labels:
         app: conntrack-app
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/workshop: ""
       containers:
       - name: conntrack-app
         image: quay.io/jclaret/lab/conntrack-app:latest
