@@ -86,7 +86,9 @@ Security Context Constraints (SCCs) define a set of conditions that pods must ru
 
 OpenShift provides several built-in SCCs with different security levels:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # View all available SCCs
 oc get scc
@@ -120,7 +122,9 @@ oc get pods -o custom-columns="NAME:.metadata.name,SCC:.metadata.annotations.ope
 
 Navigate to the SCC troubleshooting lab and deploy the exercise scenario:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Change to the SCC troubleshooting lab directory
 cd troubleshooting-lab/lab-materials/03-sec-scc/lab1-module
@@ -175,7 +179,9 @@ The solution will create all necessary resources automatically.
 
 Apply the solution step by step:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Apply the complete solution
 oc apply -k solution/
@@ -189,7 +195,9 @@ oc adm policy who-can use scc scc-sysmodule
 
 Monitor the deployment rollout and verify the fix:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Watch the deployment rollout
 oc rollout status deployment/kernel-mod-app -n module-app
