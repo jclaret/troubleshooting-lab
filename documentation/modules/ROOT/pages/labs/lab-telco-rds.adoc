@@ -70,7 +70,7 @@ oc get mcp
 ----
 
 [NOTE]
-====
+
 Expected output (takes 2-3 minutes):
 
 [source,bash]
@@ -81,7 +81,7 @@ workshop   rendered-workshop-a34756497573708d31cb436f11ea8dee   True      False 
 ----
 
 The MCP is healthy when `UPDATED=True`, `UPDATING=False`, and `DEGRADED=False`. This indicates the machine configuration has been successfully applied to all nodes in the pool.
-====
+
 
 
 === Cluster-Compare Plugin Purpose
@@ -249,6 +249,7 @@ oc cluster-compare -r out/reference/metadata_workshop.yaml
 - Required for telco RAN to capture crash dumps for root cause analysis
 - Missing configuration means crash dumps won't be captured during kernel panics
 ====
+====
 
 === Verification
 
@@ -266,7 +267,6 @@ No CRs are unmatched to reference CRs
 Metadata Hash: 325a28a44f8a057b472c54d479989514ad17251be45d4a628682bc770576a57e
 No patched CRs
 ----
-====
 
 == Lab Summary
 
