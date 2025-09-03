@@ -78,6 +78,8 @@ oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mds stat
 # Check RGW (S3) status
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph rgw stat
 oc get pods -n openshift-storage | grep rgw
+
+oc patch storagecluster ocs-storagecluster -n openshift-storage --type json --patch '[{ "op": "replace", "path": "/spec/enableCephTools", "value": true }]'
 ----
 
 == Understanding OpenShift Data Foundation
@@ -137,8 +139,9 @@ Navigate to the ODF troubleshooting lab and deploy the exercise scenario:
 # Change to the ODF troubleshooting lab directory
 cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/00-odf-health
 
-# Deploy the exercise scenario
-oc apply -k .
+# Execute the ODF configuration script
+chmod +x odf-config.sh
+./odf-config.sh
 
 # Monitor ODF cluster status
 oc get storagecluster -n openshift-storage -w
@@ -232,9 +235,11 @@ oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o custom-columns="NA
 
 Navigate to the file storage troubleshooting exercise:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
-cd troubleshooting-lab/lab-materials/00-storage-odf/02-odf-file
+cd /home/demo-user/troubleshooting-lab/lab-materials/00-storage-odf/02-odf-file
 
 # Deploy file storage application
 oc new-project odf-file
@@ -245,7 +250,9 @@ oc apply -f file-app.yaml
 
 Monitor the file storage application:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check application deployment status
 oc get pods -n odf-file
@@ -272,11 +279,16 @@ Investigate the file storage capacity issue:
 2. **How do you expand a CephFS PVC?**
 3. **What is the relationship between CephFS and underlying Ceph storage?**
 
-=== Solution Implementation: Expanding File Storage
+.Click to reveal the solution
+[%collapsible]
+====
+**Solution Implementation: Expanding File Storage**
 
 Expand the PVC to resolve capacity issues:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Expand the PVC
 oc patch pvc upload-data -n odf-file --type=merge -p '{
@@ -289,6 +301,7 @@ oc describe pvc upload-data -n odf-file | grep -i resize
 # Verify application functionality
 oc rsh -n odf-file $POD df -h /data
 ----
+====
 
 == Exercise 3: Block Storage (RBD) Troubleshooting
 
@@ -296,9 +309,11 @@ oc rsh -n odf-file $POD df -h /data
 
 Navigate to the block storage exercise:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
-cd troubleshooting-lab/lab-materials/00-storage-odf/03-odf-block
+cd /home/demo-user/troubleshooting-lab/lab-materials/00-storage-odf/03-odf-block
 
 # Deploy block storage application with intentional issue
 oc apply -f app-block.yaml
@@ -308,7 +323,9 @@ oc apply -f app-block.yaml
 
 Analyze the block storage deployment problem:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check pod status
 oc get pods -l app=rbd-hello -n odf-block -o wide
@@ -331,11 +348,16 @@ Investigate the block storage access mode issue:
 2. **What are the different access modes for persistent volumes?**
 3. **When would you use RWO vs RWX vs ROX?**
 
-=== Solution Implementation: Fixing Access Mode Issues
+.Click to reveal the solution
+[%collapsible]
+====
+**Solution Implementation: Fixing Access Mode Issues**
 
 Resolve the multi-attach problem:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Scale deployment to single replica
 oc scale deployment/rbd-hello --replicas=1 -n odf-block
@@ -347,6 +369,7 @@ oc get pods -l app=rbd-hello -n odf-block
 ROUTE=$(oc get route rbd-hello -n odf-block -o jsonpath='{.spec.host}')
 curl http://$ROUTE/
 ----
+====
 
 == Exercise 4: S3 Object Storage Troubleshooting
 
@@ -354,9 +377,11 @@ curl http://$ROUTE/
 
 Navigate to the S3 troubleshooting exercise:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
-cd troubleshooting-lab/lab-materials/00-storage-odf/01-odf-s3
+cd /home/demo-user/troubleshooting-lab/lab-materials/00-storage-odf/01-odf-s3
 
 # Deploy S3 application with configuration issues
 oc apply -f s3-app.yaml
@@ -366,7 +391,9 @@ oc apply -f s3-app.yaml
 
 Investigate S3 connectivity and authentication:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check ObjectBucketClaim status
 oc get obc -n odf-s3
@@ -396,11 +423,16 @@ Debug the S3 authentication problem:
 2. **What is the relationship between ObjectBucketClaim, ConfigMap, and Secret?**
 3. **How do you troubleshoot S3 authentication issues?**
 
-=== Solution Implementation: Fixing S3 Configuration
+.Click to reveal the solution
+[%collapsible]
+====
+**Solution Implementation: Fixing S3 Configuration**
 
 Correct the S3 bucket configuration:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Fix the ConfigMap reference in deployment
 oc patch deployment s3-uploader -n odf-s3 --type=json -p='[
@@ -415,6 +447,7 @@ oc rollout status deployment/s3-uploader -n odf-s3
 URL=$(oc get route s3-uploader -n odf-s3 -o jsonpath='{.spec.host}')
 curl http://$URL/
 ----
+====
 
 == Lab Summary
 
