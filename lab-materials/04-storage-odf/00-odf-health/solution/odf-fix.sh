@@ -15,13 +15,9 @@ if [ -f /tmp/odf-target-node.txt ]; then
     
     echo "ODF storage label restored to node: $TARGET_NODE"
 else
-    echo "No target node found. Using fallback method..."
-    # Fallback: find worker nodes and add label to first one
-    WORKER_NODES=$(oc get nodes -l node-role.kubernetes.io/worker -o name | head -1 | sed 's/node\///')
-    if [ ! -z "$WORKER_NODES" ]; then
-        echo "Applying fix to worker node: $WORKER_NODES"
-        oc label node/$WORKER_NODES cluster.ocs.openshift.io/openshift-storage=""
-    fi
+    echo "ERROR: Target node file /tmp/odf-target-node.txt not found!"
+    echo "Please run the odf-config.sh script first to set up the problem scenario."
+    exit 1
 fi
 
 echo "ODF fix configuration applied. Monitor ODF cluster recovery:"
