@@ -46,28 +46,16 @@ oc get pods -o custom-columns="NAME:.metadata.name,SCC:.metadata.annotations.ope
 oc get pod -l app=kernel-mod-app -o jsonpath='{.items[0].spec.securityContext}'
 
 # Check ServiceAccount SCC bindings
-oc adm policy who-can use scc scc-sysmodule
+oc adm policy who-can use scc scc-sysmodule-min
 
 # View pod events for security-related issues
 oc get events --sort-by='.lastTimestamp' | grep -i "security\|scc\|capability"
 
-# Check pod logs for capability-related errors
-oc logs -l app=kernel-mod-app --tail=50 | grep -i "permission\|capability\|module"
+# Gather audit logs
+oc adm must-gather -- /usr/bin/gather_audit_logs
 
-# Verify Linux capabilities in running container
-oc exec -n module-app deployment/kernel-mod-app -- cat /proc/self/status | grep CapEff
-
-# Test kernel module operations
-oc exec -n module-app deployment/kernel-mod-app -- lsmod
-oc exec -n module-app deployment/kernel-mod-app -- insmod /app/hello.ko
-oc exec -n module-app deployment/kernel-mod-app -- rmmod hello
-
-# Check SELinux context
-oc exec -n module-app deployment/kernel-mod-app -- id -Z
-
-# Verify ServiceAccount details
-oc get serviceaccount module-loader -o yaml
-oc describe serviceaccount module-loader
+# Search for SCC admission decisions
+find must-gather* -ipath '*kube-apiserver*/*audit*.log.gz' | xargs zgrep -h securitycontextconstraints.admission.openshift.io | grep module-app | jq '.'
 ----
 
 == Understanding Security Context Constraints
@@ -138,7 +126,49 @@ cd /home/demo-user/troubleshooting-lab/lab-materials/03-sec-scc/lab1-module
 oc apply -k .
 
 # Monitor deployment status
-oc get pods -n module-app -w
+oc get pods -n module-app 
+
+# Check application logs
+oc logs -n module-app -l app=kernel-mod-app
+
+# Check SCC used by the pod
+oc get pods -n module-app -o custom-columns="NAME:.metadata.name,SCC:.metadata.annotations.openshift\.io/scc"
+----
+
+=== Understanding the Required Configuration
+
+To resolve the kernel module loading issue, the deployment needs to be configured with:
+
+- **ServiceAccount** (serviceaccount.yaml): A dedicated ServiceAccount for the application
+- **Custom SCC**(scc.yaml): A Security Context Constraint with the necessary permissions for kernel module operations
+- **Security Context**: Proper security context configuration in the deployment
+
+**Required securityContext configuration:**
+
+[.lines_space]
+[.console-input]
+[source,yaml, subs="+macros,+attributes"]
+----
+securityContext:
+  runAsUser: 0
+  allowPrivilegeEscalation: false
+  capabilities:
+    add: ["SYS_MODULE"]
+  seLinuxOptions:
+    type: spc_t
+----
+
+=== Expected Error Analysis
+
+After deploying the initial configuration, investigate why the kernel module is still not loading correctly.
+
+**Expected error messages:**
+[.lines_space]
+[.console-output]
+[source,text]
+----
+Error: rmmod: ERROR: could not remove 'hello': Operation not permitted
+rmmod: ERROR: could not remove module hello: Operation not permitted
 ----
 
 === Investigation Challenge
@@ -152,9 +182,22 @@ oc get pods -n module-app -w
 - **SCC Applied**: What Security Context Constraint is currently applied to the pod?
 - **ServiceAccount**: Does the ServiceAccount exist and have proper permissions?
 
+
+
+.Click to reveal the solution
+[%collapsible]
+====
+**Understanding the problem:**
+
+The application is failing because:
+1. The ServiceAccount `module-loader` exists but has no SCC permissions
+2. The application uses `SYS_ADMIN` capability instead of `SYS_MODULE`
+3. The custom SCC `scc-sysmodule-min` exists but has no users assigned to it
+
 **Step-by-Step Investigation:**
 
-1. **Check pod status and logs:**
+- **Check steps:**
+
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
@@ -165,27 +208,18 @@ oc get pods -n module-app
 # Check application logs for errors
 oc logs -l app=kernel-mod-app -n module-app
 
-# Check what SCC is applied to the pod
-oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].metadata.annotations.openshift\.io/scc}'
-----
+# Check the deployment if there's no pods created
+oc get deployment kernel-mod-app -o yaml
 
-2. **Check ServiceAccount and permissions:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
+# Check what SCC is applied to the pod
+oc get pods -n module-app --output=custom-columns="NAME:.metadata.name,STATUS:.metadata.annotations.openshift\.io/scc"
+
 # Check if ServiceAccount exists
 oc get serviceaccount module-loader -n module-app
 
 # Check SCC permissions for the ServiceAccount
 oc adm policy who-can use scc scc-sysmodule-min
-----
 
-3. **Analyze SCC selection using audit logs:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
 # Gather audit logs
 oc adm must-gather -- /usr/bin/gather_audit_logs
 
@@ -193,38 +227,18 @@ oc adm must-gather -- /usr/bin/gather_audit_logs
 find must-gather* -ipath '*kube-apiserver*/*audit*.log.gz' | xargs zgrep -h securitycontextconstraints.admission.openshift.io | grep module-app | jq '.'
 ----
 
-
-.Click to reveal the solution
-[%collapsible]
-====
-**Understanding the problem:**
-
-The application is failing because:
-1. The ServiceAccount `module-loader` doesn't exist
-2. The application uses `SYS_ADMIN` capability instead of `SYS_MODULE`
-3. The custom SCC `scc-sysmodule-min` exists but has no users assigned to it
-
 **Solution Implementation:**
 
-1. **Create the ServiceAccount:**
+1. **Grant SCC permissions to the existing ServiceAccount:**
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Create the ServiceAccount
-oc create serviceaccount module-loader -n module-app
-----
-
-2. **Grant SCC permissions to the ServiceAccount:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Grant SCC permissions
+# Grant SCC permissions to the existing ServiceAccount
 oc adm policy add-scc-to-user scc-sysmodule-min -z module-loader -n module-app
 ----
 
-3. **Update the deployment with correct capabilities:**
+2. **Update the deployment with correct capabilities:**
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
@@ -256,8 +270,6 @@ oc adm policy who-can use scc scc-sysmodule-min
 ----
 
 ====
-
-
 
 **Verification and Analysis:**
 

@@ -18,14 +18,7 @@ spec:
       labels:
         app: kernel-mod-app
     spec:
-      serviceAccountName: module-loader
       containers:
         - name: app
           image: quay.io/jclaret/lab/module-app:latest
-          securityContext:
-            runAsUser: 0
-            allowPrivilegeEscalation: false
-            capabilities:
-              add: ["SYS_ADMIN"]
-            seLinuxOptions:
-              type: spc_t
+
