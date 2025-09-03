@@ -281,6 +281,104 @@ When engaging Red Hat Support, provide:
 * Clear problem description with timeline of events
 * Steps already taken and their outcomes as well as the reproducer
 
+== Exercise 5: Analyzing Must-Gather Data with OMC
+
+=== Understanding OMC (OpenShift Must-Gather Client)
+
+The `omc` tool is a powerful utility that allows you to inspect and analyze must-gather data using familiar `oc` command syntax. This tool is particularly valuable for offline analysis, support case preparation, and post-incident investigation when you need to examine cluster state from a specific point in time.
+
+=== Installing OMC
+
+Install the `omc` tool on your local system:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Download and install omc for Linux to /usr/local/bin
+curl -sL https://github.com/gmeghnag/omc/releases/latest/download/omc_$(uname)_$(uname -m).tar.gz | tar xzf - omc && sudo mv omc /usr/local/bin/ && chmod +x /usr/local/bin/omc
+
+# Verify installation
+omc -h
+----
+
+=== Using OMC with Must-Gather Data
+
+Point `omc` to your must-gather directory and use it like the `oc` command:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Point omc to a must-gather directory
+omc use ./must-gather-2025-08-05/
+
+# Now use omc commands just like oc
+omc get clusterversion
+omc get nodes -o wide
+omc get pods -A
+----
+
+=== Advanced OMC Examples
+
+Explore cluster state using advanced `omc` capabilities:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check etcd cluster status with detailed information
+omc etcd status
+
+# Retrieve master nodes by label
+omc get node -l node-role.kubernetes.io/master= -o name
+
+# Get etcd pod name from specific node
+omc get pod -l app=etcd -o jsonpath="{.items[?(@.spec.nodeName=='ip-10-0-132-49.eu-central-1.compute.internal')].metadata.name}"
+
+# Check Prometheus alerts in firing or pending state
+omc prom rules -s firing,pending -o wide
+
+# Inspect certificates from configmaps and secrets
+omc certs inspect
+
+# View HAProxy backends from ingress controller config
+omc haproxy backends
+----
+
+=== OMC for Support Case Analysis
+
+Use `omc` to prepare comprehensive analysis for support cases:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Analyze cluster operators at the time of must-gather
+omc get co -o wide
+
+# Check node conditions and events
+omc describe nodes
+
+# Examine pod status across all namespaces
+omc get pods -A --field-selector status.phase!=Running
+
+# Review recent events leading up to the issue
+omc get events -A --sort-by=.lastTimestamp | tail -50
+----
+
+[NOTE]
+====
+OMC is particularly useful for:
+
+* **Offline Analysis**: Examine cluster state without requiring cluster access
+* **Historical Investigation**: Analyze cluster state from specific time periods
+* **Support Case Preparation**: Generate comprehensive reports for Red Hat Support
+* **Post-Incident Review**: Understand cluster state during incidents
+
+Reference: https://github.com/gmeghnag/omc[OMC GitHub Repository]
+====
+
 == Lab Summary
 
 This foundational lab established essential skills for OpenShift cluster health validation and diagnostic data collection. You've learned to:
@@ -288,10 +386,12 @@ This foundational lab established essential skills for OpenShift cluster health 
 * Execute standardized Red Hat cluster health validation commands
 * Create comprehensive must-gather collections for different troubleshooting scenarios
 * Generate and extract node-level sosreports for deep system analysis
+* Analyze must-gather data using the `omc` tool for offline investigation
 * Apply Red Hat's systematic approach to diagnostic data collection
 
 == Additional Resources
 
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data[Gathering data about your cluster]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#about-sosreport_gathering-cluster-data[SosReport Documentation]
+* link:https://github.com/gmeghnag/omc[OMC - OpenShift Must-Gather Client]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/support/index#support-overview-troubleshooting-issues[Troubleshooting issues]
