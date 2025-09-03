@@ -244,6 +244,7 @@ oc logs deployment/conntrack-app -n conntrack-app
 
 - **What is the current status of the application pods?**
 - **Are there any errors in the pod logs or events?**
+- **Is the machineConfigLabels selector correct?**
 - **What is the status of the Tuned CRD and profiles?**
 - **Are there any errors in the Node Tuning Operator logs?**
 - **What do the tuned daemon logs show on the nodes?**
@@ -259,7 +260,7 @@ Use the troubleshooting commands from the "Performance Profile Troubleshooting c
 - The Tuned profile has a wrong MCP configuration
 - The Tuned profile has syntax errors in the kernel parameter configuration
 - The `net.netfilter.nf_conntrack_max` parameter value is incorrectly formatted
-- This prevents the Tuned profile from being applied correctly by the Node Tuning Operator
+- This prevents the Tuned profile from being applied correctly by the Node Tuning Operator and got Degraded
 
 **Solution Implementation:**
 Apply the corrected Tuned profile:

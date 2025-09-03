@@ -55,6 +55,7 @@ oc get events -A --field-selector type=Warning --sort-by=.lastTimestamp
 # Assess resource utilization at node and pod levels
 oc adm top nodes
 oc adm top pods -A
+oc adm top pods -A --containers=true
 
 ----
 
@@ -333,9 +334,6 @@ omc etcd status
 # Retrieve master nodes by label
 omc get node -l node-role.kubernetes.io/master= -o name
 
-# Get etcd pod name from specific node
-omc get pod -l app=etcd -o jsonpath="{.items[?(@.spec.nodeName=='ip-10-0-132-49.eu-central-1.compute.internal')].metadata.name}"
-
 # Check Prometheus alerts in firing or pending state
 omc prom rules -s firing,pending -o wide
 
@@ -358,10 +356,10 @@ Use `omc` to prepare comprehensive analysis for support cases:
 omc get co -o wide
 
 # Check node conditions and events
-omc describe nodes
+omc describe nodes ip-10-0-19-14.ec2.internal
 
 # Examine pod status across all namespaces
-omc get pods -A --field-selector status.phase!=Running
+omc get pods -A | egrep -v "Completed|Running"
 
 # Review recent events leading up to the issue
 omc get events -A --sort-by=.lastTimestamp | tail -50

@@ -130,9 +130,6 @@ Navigate to the SCC troubleshooting lab and deploy the exercise scenario:
 # Change to the SCC troubleshooting lab directory
 cd /home/demo-user/troubleshooting-lab/lab-materials/03-sec-scc/lab1-module
 
-# Create a new namespace for better isolation
-oc new-project module-app
-
 # Deploy the exercise scenario
 oc apply -k .
 

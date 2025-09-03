@@ -49,6 +49,8 @@ MACHINESET=$(oc get machinesets.machine.openshift.io -n openshift-machine-api -o
 echo "Using machineset: $MACHINESET"
 oc scale $MACHINESET -n openshift-machine-api --replicas=5
 oc get machines.machine.openshift.io -n openshift-machine-api
+
+# Wait until the new node is Ready
 oc get nodes
 
 # Label a worker node for the new MCP
@@ -62,7 +64,7 @@ oc label node "$NODE" node-role.kubernetes.io/workshop="" --overwrite
 oc get node "$NODE" --show-labels | grep workshop
 
 # Create the MCP
-cd lab-materials/01-telco-rds
+cd /home/demo-user/troubleshooting-lab/lab-materials/01-telco-rds
 oc apply -f machine_config_pool.yaml
 
 # Verify new MCP is created and updated
@@ -73,7 +75,9 @@ oc get mcp
 
 Expected output (takes 2-3 minutes):
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 oc get mcp workshop 
 NAME       CONFIG                                               UPDATED   UPDATING   DEGRADED   MACHINECOUNT   READYMACHINECOUNT   UPDATEDMACHINECOUNT   DEGRADEDMACHINECOUNT   AGE
@@ -166,7 +170,8 @@ For this lab exercise, we'll use a simplified metadata file focusing on essentia
 ----
 # Copy the simplified metadata file for lab exercise
 cp metadata_workshop.yaml out/reference/metadata_workshop.yaml
-cp 06-kdump-workshop.yaml out/source-crs/extra-manifest out/reference/required/machine-config/kdump/06-kdump-worker.yaml
+cp 06-kdump-workshop.yaml out/source-crs/extra-manifest 
+cp 06-kdump-workshop.yaml out/reference/required/machine-config/kdump/06-kdump-worker.yaml
 
 # Review the metadata content
 cat out/reference/metadata_workshop.yaml
@@ -213,11 +218,12 @@ No patched CRs
 
 == Exercise 4: Resolving Configuration Drift
 
-**🎯 YOUR MISSION**: The cluster-compare output above shows a **configuration drift problem**. Your task is to:
+**YOUR MISSION**: The cluster-compare output above shows a **configuration drift problem**. Your task is to:
 
 1. **Understand the problem** - What exactly is missing and why is it critical?
 2. **Find the solution** - Locate the missing configuration file and apply it
 3. **Verify the fix** - Confirm the cluster is now compliant
+4. **Node restart** - It is expected a node restart
 
 **Time Limit**: 10-15 minutes of investigation before checking the solution
 
