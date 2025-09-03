@@ -47,6 +47,7 @@ oc get pod -l app=kernel-mod-app -o jsonpath='{.items[0].spec.securityContext}'
 
 # Check ServiceAccount SCC bindings
 oc adm policy who-can use scc scc-sysmodule-min
+oc auth can-i use scc/scc-sysmodule-min --as=system:serviceaccount:module-app:module-loader
 
 # View pod events for security-related issues
 oc get events --sort-by='.lastTimestamp' | grep -i "security\|scc\|capability"
@@ -182,17 +183,15 @@ rmmod: ERROR: could not remove module hello: Operation not permitted
 - **SCC Applied**: What Security Context Constraint is currently applied to the pod?
 - **ServiceAccount**: Does the ServiceAccount exist and have proper permissions?
 
-
-
 .Click to reveal the solution
 [%collapsible]
 ====
 **Understanding the problem:**
 
 The application is failing because:
-1. The ServiceAccount `module-loader` exists but has no SCC permissions
-2. The application uses `SYS_ADMIN` capability instead of `SYS_MODULE`
-3. The custom SCC `scc-sysmodule-min` exists but has no users assigned to it
+
+- The ServiceAccount `module-loader` exists but has no SCC permissions
+- The custom SCC `scc-sysmodule-min` exists but has no users assigned to it
 
 **Step-by-Step Investigation:**
 
@@ -236,15 +235,8 @@ find must-gather* -ipath '*kube-apiserver*/*audit*.log.gz' | xargs zgrep -h secu
 ----
 # Grant SCC permissions to the existing ServiceAccount
 oc adm policy add-scc-to-user scc-sysmodule-min -z module-loader -n module-app
-----
 
-2. **Update the deployment with correct capabilities:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Apply the corrected deployment
-oc apply -f solution/deployment.yaml
+oc -n module-app rollout restart deploy/kernel-mod-app
 ----
 
 **Verification:**
@@ -261,9 +253,6 @@ oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].metadata.
 
 # Check application logs for successful module loading
 oc logs -l app=kernel-mod-app -n module-app --tail=20
-
-# Verify the module is loaded in the kernel
-oc exec -n module-app deployment/kernel-mod-app -- lsmod | grep hello
 
 # Verify SCC permissions
 oc adm policy who-can use scc scc-sysmodule-min
@@ -286,11 +275,11 @@ oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].metadata.
 # Check application logs for successful module loading
 oc logs -l app=kernel-mod-app -n module-app --tail=20
 
-# Verify the module is loaded in the kernel
-oc exec -n module-app deployment/kernel-mod-app -- lsmod | grep hello
+# Aplica de nuevo (sin problema si ya está hecho)
 
-# Verify the SYS_MODULE capability is present
-oc exec -n module-app deployment/kernel-mod-app -- cat /proc/self/status | grep CapEff
+# Verify (expected yes)
+oc auth can-i use scc/scc-sysmodule-min --as=system:serviceaccount:module-app:module-loader
+
 ----
 
 == Lab Summary
