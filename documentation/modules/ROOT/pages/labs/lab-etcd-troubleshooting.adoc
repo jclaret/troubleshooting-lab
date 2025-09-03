@@ -18,12 +18,6 @@ By completing this lab, you will be able to:
 * Restore etcd functionality after service disruptions
 * Analyze cluster operator degradation related to etcd issues
 
-=== Reference Documentation
-
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/backup_and_restore/troubleshooting-backup-and-restore[Troubleshooting backup and restore]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/backup_and_restore/control_plane_backup_and_restore[Control plane backup and restore]
-* link:https://etcd.io/docs/v3.5/op-guide/maintenance/[etcd Maintenance Guide]
-
 == etcd Troubleshooting Commands
 
 When troubleshooting etcd cluster issues, use these commands to investigate and resolve problems:
@@ -75,11 +69,12 @@ oc get co etcd -w
 
 == Understanding etcd in OpenShift
 
-etcd is the key-value store that backs OpenShift's control plane, storing cluster configuration, API objects, cluster state, authentication data, and operational information. OpenShift deploys etcd as static pods on control plane nodes.
+Etcd is the key-value store that backs OpenShift's control plane, storing cluster configuration, API objects, cluster state, authentication data, and operational information. OpenShift deploys etcd as static pods on control plane nodes.
 
 [IMPORTANT]
 ====
 **etcd Quorum Requirements**:
+
 - 3-node cluster: Tolerates 1 node failure (quorum = 2)
 - Loss of quorum results in cluster read-only mode or complete failure
 ====
@@ -90,7 +85,9 @@ etcd is the key-value store that backs OpenShift's control plane, storing cluste
 
 Before introducing problems, establish baseline etcd health:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check overall cluster operator status
 oc get co etcd
@@ -119,7 +116,7 @@ Navigate to the etcd troubleshooting lab directory and deploy the exercise scena
 [source,bash, subs="+macros,+attributes"]
 ----
 # Change to the etcd troubleshooting lab directory
-cd /home(demo-user/troubleshooting-lab/lab-materials/06-etcd
+cd /home/demo-user/troubleshooting-lab/lab-materials/06-etcd
 
 # Deploy the exercise scenario
 oc apply -k .
@@ -230,7 +227,5 @@ This lab demonstrated critical etcd troubleshooting skills for OpenShift control
 
 == Additional Resources
 
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/backup_and_restore/control_plane_backup_and_restore[etcd Backup and Restore]
-* link:https://etcd.io/docs/v3.5/op-guide/recovery/[etcd Disaster Recovery]
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/support/troubleshooting-operating-system-issues#troubleshooting-etcd-issues_troubleshooting-operating-system-issues[Troubleshooting etcd Issues]
-* link:https://etcd.io/docs/v3.5/op-guide/monitoring/[etcd Monitoring Guide]
+* link:https://docs.redhat.com/en/documentation/red_hat_build_of_microshift/4.18/html/troubleshooting/microshift-etcd-troubleshoot[Troubleshoot etcd]
+* link:https://access.redhat.com/articles/6271341[ETCD performance troubleshooting guide for OpenShift Container Platform]

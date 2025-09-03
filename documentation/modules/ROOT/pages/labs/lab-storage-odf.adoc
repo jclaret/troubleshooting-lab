@@ -1,6 +1,8 @@
 = Storage - OpenShift Data Foundation Troubleshooting
 include::../_attributes.adoc[]
 
+:imagesdir: assets/images
+
 == Lab Overview
 
 This comprehensive lab covers troubleshooting OpenShift Data Foundation (ODF) across multiple scenarios including Ceph cluster health issues, capacity management, file storage problems, block storage misconfigurations, and S3 object storage connectivity issues. You'll learn to diagnose and resolve storage problems in OpenShift environments.
@@ -23,6 +25,60 @@ By completing this lab, you will be able to:
 * link:https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.18/html/troubleshooting_openshift_data_foundation[Troubleshooting OpenShift Data Foundation]
 * link:https://docs.ceph.com/en/quincy/rados/troubleshooting/[Ceph Troubleshooting Guide]
 * link:https://role.rhu.redhat.com/rol-rhu/app/seminar/exps275-1[OpenShift Data Foundation Expert Session]
+
+== ODF Troubleshooting Commands
+
+When troubleshooting OpenShift Data Foundation issues, use these commands to investigate and resolve problems:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check ODF operator status
+oc get csv -n openshift-storage | grep odf
+oc get storagecluster -n openshift-storage
+oc get cephcluster -n openshift-storage
+
+# View all ODF pods and their status
+oc get pods -n openshift-storage -o wide
+
+# Check ODF dashboard and routes
+oc get route -n openshift-storage
+
+# Check Ceph cluster health using toolbox
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail
+
+# Check OSD tree and status
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph osd tree
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph osd stat
+
+# View cluster capacity and usage
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph df
+
+# Check storage classes and PVCs
+oc get storageclass | grep ocs
+oc get pvc -A | grep ocs
+
+# Check node labels for ODF storage nodes
+oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o custom-columns="NAME:.metadata.name,LABELS:.metadata.labels"
+
+# Check for ODF-related alerts
+oc get alerts -n openshift-storage
+oc get events -n openshift-storage --sort-by='.lastTimestamp' | grep -i "ceph\|odf\|storage"
+
+# Check Ceph monitor status
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mon stat
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mon dump
+
+# Check CephFS status
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph fs status
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mds stat
+
+# Check RGW (S3) status
+oc -n openshift-storage rsh deployment/rook-ceph-tools ceph rgw stat
+oc get pods -n openshift-storage | grep rgw
+----
 
 == Understanding OpenShift Data Foundation
 
@@ -66,135 +122,106 @@ oc get route -n openshift-storage
 * **Storage Classes**: Defines storage types (block, file, object)
 * **Persistent Volume Claims**: Application storage requests
 
-== Exercise 1: Ceph Cluster Health Troubleshooting
+== Exercise 1: Troubleshooting ODF Health Issues
 
-=== Problem Definition: Time Synchronization Issues
+=== Scenario Setup: Storage Node Configuration Problems
 
-This exercise simulates time synchronization problems that commonly affect Ceph clusters in real-world deployments.
+Navigate to the ODF troubleshooting lab and deploy the exercise scenario:
 
-Navigate to the ODF troubleshooting lab:
-
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Change to the ODF troubleshooting lab directory
-cd troubleshooting-lab/lab-materials/04-storage-odf/lab1-ceph-health
+cd /home/demo-user/troubleshooting-lab/lab-materials/00-storage-odf/lab1-node-labeling
 
-# Enable the Ceph toolbox for diagnostics
-oc patch storagecluster ocs-storagecluster -n openshift-storage --type json --patch '[{ "op": "replace", "path": "/spec/enableCephTools", "value": true }]'
+# Deploy the exercise scenario
+oc apply -k .
 
-# Wait for toolbox deployment
-oc wait --for=condition=Available deployment/rook-ceph-tools -n openshift-storage --timeout=300s
+# Monitor ODF cluster status
+oc get storagecluster -n openshift-storage -w
 ----
-
-=== Information Gathering: Baseline Ceph Health
-
-Establish baseline Ceph cluster health before introducing problems:
-
-[source,bash]
-----
-# Check Ceph cluster status using toolbox
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
-
-# Get detailed health information
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail
-
-# Check OSD tree and status
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph osd tree
-
-# View cluster capacity
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph df
-----
-
-=== Hypothesis Development: Introducing Time Sync Issues
-
-Deploy MachineConfig that disrupts time synchronization:
-
-[source,bash]
-----
-# Apply MachineConfig to prevent node disruption
-oc apply -f 00-mco-ndp-chrony.yaml
-
-# Apply problematic chrony configuration
-oc apply -f 99-worker-chrony-bad.yaml
-
-# Monitor MachineConfigPool rollout
-oc get mcp worker -w
-----
-
-=== Analysis and Documentation: Investigating Ceph Issues
-
-After the MachineConfig is applied, investigate resulting Ceph problems:
-
-[source,bash]
-----
-# Check Ceph cluster status for time-related warnings
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
-
-# Look for slow operations
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail
-
-# Check individual OSD status
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph osd stat
-
-# Examine monitor synchronization
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mon stat
-----
-
-Expected symptoms:
-- HEALTH_WARN status with slow ops
-- Clock skew warnings between nodes
-- Possible MON synchronization issues
 
 === Investigation Challenge
 
-Spend 15-20 minutes investigating the time synchronization problem:
+**YOUR MISSION**: Investigate the ODF cluster behavior and identify any issues.
 
-1. **What warnings does `ceph status` show?**
-2. **How do you check time synchronization on OpenShift nodes?**
-3. **What services are responsible for time sync in RHCOS?**
-4. **How does time drift affect Ceph operations?**
+**What to check:**
 
-[TIP]
+- What is the status of the ODF storage cluster?
+- Are there any alerts or warnings in the ODF console?
+- Which nodes are labeled for ODF storage?
+- Are there any OSD pods failing or in error state?
+- What does the Ceph cluster health show?
+
+Use the troubleshooting commands provided earlier to investigate the cluster behavior systematically.
+
+=== Understanding the Problem
+
+If you discovered that the ODF storage cluster is degraded and OSD pods are failing, this indicates a node labeling issue that prevents ODF from identifying storage nodes correctly.
+
+=== Creating the Solution
+
+**YOUR MISSION**: Identify and resolve the node labeling issue to restore ODF functionality.
+
+**Steps to complete:**
+
+1. **Identify the root cause** of the ODF cluster degradation
+2. **Locate the affected storage nodes**
+3. **Restore the missing node labels**
+4. **Verify ODF cluster recovery**
+
+.Click to reveal the solution
+[%collapsible]
 ====
-💡 **Hint**: The issue is related to chrony (NTP) configuration on worker nodes. Use `oc debug node` to check time synchronization status and chrony configuration.
+**Solution Implementation:**
 
-Key investigation commands:
-- `oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail`
-- `oc debug node/<worker-node> -- chroot /host systemctl status chronyd`
-- `oc debug node/<worker-node> -- chroot /host chronyc sources`
+Apply the fix to restore ODF node labeling:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Apply the complete solution
+oc apply -k solution/
+
+# Alternative manual steps:
+# 1. Get the list of storage nodes
+STORAGE_NODES=$(oc get nodes -l node-role.kubernetes.io/worker -o name | head -3)
+
+# 2. Restore ODF storage labels
+for node in $STORAGE_NODES; do
+    oc label $node cluster.ocs.openshift.io/openshift-storage=""
+    oc label $node node-role.kubernetes.io/worker=""
+done
+
+# 3. Monitor ODF cluster recovery
+oc get storagecluster -n openshift-storage -w
+----
 ====
 
-=== Solution Implementation: Fixing Time Synchronization
+=== Verification
 
-Remove the problematic chrony configuration:
+Monitor the ODF recovery process:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
-# Remove the bad chrony MachineConfig
-oc delete machineconfig 99-worker-chrony-bad
+# Watch ODF storage cluster status during recovery
+oc get storagecluster -n openshift-storage -w
 
-# Monitor recovery
-oc get mcp worker -w
+# Monitor OSD pod restart
+oc get pods -n openshift-storage -w
 
-# Wait for rollout to complete
-oc wait --for=condition=Updated mcp/worker --timeout=600s
-----
+# Check when all OSD pods are running
+oc get pods -n openshift-storage | grep osd
 
-=== Verification and Documentation: Confirming Recovery
-
-Verify Ceph cluster returns to healthy state:
-
-[source,bash]
-----
-# Check Ceph status after time sync recovery
+# Verify Ceph cluster health after recovery
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
 
-# Verify no more slow ops
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph health detail
-
-# Confirm time synchronization on nodes
-WORKER_NODE=$(oc get nodes -l node-role.kubernetes.io/worker -o name | head -1 | cut -d'/' -f2)
-oc debug node/$WORKER_NODE -- chroot /host chronyc sources
+# Verify node labels are restored
+oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o custom-columns="NAME:.metadata.name,LABELS:.metadata.labels"
 ----
 
 == Exercise 2: File Storage (CephFS) Troubleshooting
@@ -205,7 +232,7 @@ Navigate to the file storage troubleshooting exercise:
 
 [source,bash]
 ----
-cd troubleshooting-lab/lab-materials/04-storage-odf/02-odf-file
+cd troubleshooting-lab/lab-materials/00-storage-odf/02-odf-file
 
 # Deploy file storage application
 oc new-project odf-file
@@ -269,7 +296,7 @@ Navigate to the block storage exercise:
 
 [source,bash]
 ----
-cd troubleshooting-lab/lab-materials/04-storage-odf/03-odf-block
+cd troubleshooting-lab/lab-materials/00-storage-odf/03-odf-block
 
 # Deploy block storage application with intentional issue
 oc apply -f app-block.yaml
@@ -327,7 +354,7 @@ Navigate to the S3 troubleshooting exercise:
 
 [source,bash]
 ----
-cd troubleshooting-lab/lab-materials/04-storage-odf/01-odf-s3
+cd troubleshooting-lab/lab-materials/00-storage-odf/01-odf-s3
 
 # Deploy S3 application with configuration issues
 oc apply -f s3-app.yaml
