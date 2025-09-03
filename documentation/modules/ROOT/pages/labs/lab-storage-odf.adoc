@@ -96,7 +96,9 @@ OpenShift Data Foundation provides software-defined storage using Ceph as the un
 
 Check the overall status of ODF components:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check ODF operator status
 oc get csv -n openshift-storage | grep odf
@@ -133,7 +135,7 @@ Navigate to the ODF troubleshooting lab and deploy the exercise scenario:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Change to the ODF troubleshooting lab directory
-cd /home/demo-user/troubleshooting-lab/lab-materials/00-storage-odf/lab1-node-labeling
+cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/00-odf-health
 
 # Deploy the exercise scenario
 oc apply -k .
