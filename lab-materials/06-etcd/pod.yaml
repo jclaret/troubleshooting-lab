@@ -15,8 +15,7 @@ spec:
   hostNetwork: true
   containers:
   - name: debug
-    #image: quay.io/quay/busybox:latest
-    image: registry.offline.lab:5000/lab/busybox:latest
+    image: quay.io/jclaret/lab/busybox:latest
     command:
       - /bin/sh
       - -c

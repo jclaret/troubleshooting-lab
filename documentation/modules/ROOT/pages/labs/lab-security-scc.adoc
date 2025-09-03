@@ -102,6 +102,7 @@ oc get pods -o custom-columns="NAME:.metadata.name,SCC:.metadata.annotations.ope
 ----
 
 **Common OpenShift SCCs**:
+
 - `restricted-v2`: Default restrictive SCC (most secure)
 - `restricted`: Legacy default SCC
 - `nonroot-v2`: Allows non-root users with additional capabilities
@@ -118,7 +119,7 @@ oc get pods -o custom-columns="NAME:.metadata.name,SCC:.metadata.annotations.ope
 
 == Exercise 1: Troubleshooting Kernel Module Application
 
-=== Scenario Setup: Application Requiring Kernel Operations
+=== Scenario Setup
 
 Navigate to the SCC troubleshooting lab and deploy the exercise scenario:
 
@@ -127,7 +128,7 @@ Navigate to the SCC troubleshooting lab and deploy the exercise scenario:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Change to the SCC troubleshooting lab directory
-cd troubleshooting-lab/lab-materials/03-sec-scc/lab1-module
+cd /home/demo-user/troubleshooting-lab/lab-materials/03-sec-scc/lab1-module
 
 # Create a new namespace for better isolation
 oc new-project module-app

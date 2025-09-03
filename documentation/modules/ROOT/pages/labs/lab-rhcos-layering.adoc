@@ -36,16 +36,40 @@ oc get mcp workshop -w
 # Check node status and image information
 oc get nodes -o custom-columns="NAME:.metadata.name,STATUS:.status.conditions[?(@.type=='Ready')].status,VERSION:.status.nodeInfo.osImage"
 
+# Troubleshoot MachineConfig issues
+oc describe mc 99-network-tools-worker
+oc get mc 99-network-tools-worker -o yaml
+
+# Check MachineConfigPool conditions and status
+oc get mcp workshop -o jsonpath='{.status.conditions}' | jq '.[] | select(.type=="Updated" or .type=="Updating" or .type=="Degraded")'
+
+# Monitor node rollout progress
+oc get nodes -l node-role.kubernetes.io/workshop -o custom-columns="NAME:.metadata.name,READY:.status.conditions[?(@.type=='Ready')].status,SCHEDULABLE:.spec.unschedulable"
+
+# Check for MachineConfig-related events
+oc get events --sort-by='.lastTimestamp' | grep -i "machineconfig\|mcp"
+
+# Check Machine Config Operator logs
+oc logs -n openshift-machine-config-operator deployment/machine-config-operator --tail=50
+
+# Check Machine Config Daemon logs for specific node
+NODE=$(oc get nodes -l node-role.kubernetes.io/workshop -o jsonpath='{.items[0].metadata.name}')
+MCD_POD=$(oc get pods -n openshift-machine-config-operator -o name | grep $NODE)
+oc logs -n openshift-machine-config-operator $MCD_POD --tail=50
+
+# Check for MachineConfig-related events in MCO namespace
+oc get events -n openshift-machine-config-operator --sort-by='.lastTimestamp' | grep -i "machineconfig\|mcp"
+
+# Verify image layering on specific node
+oc debug node/$NODE -- chroot /host rpm-ostree status
+oc debug node/$NODE -- chroot /host rpm-ostree status --json | jq '.deployments[0].packages[] | select(.name | contains("network-tools"))'
+
 # Get nodes from specific MCP
 oc get nodes -l node-role.kubernetes.io/workshop -o name
 
 # Check rpm-ostree status on nodes
 NODE=$(oc get nodes -l node-role.kubernetes.io/workshop -o jsonpath='{.items[0].metadata.name}')
 oc debug node/$NODE -- chroot /host rpm-ostree status --verbose
-
-# Check package versions and overrides
-oc debug node/$NODE -- chroot /host rpm-ostree db list --local
-oc debug node/$NODE -- chroot /host rpm -q <package-name>
 
 # Check Machine rollout events
 oc get events --sort-by=.lastTimestamp | grep -E "Machine|Config"
@@ -57,6 +81,90 @@ watch 'oc get nodes -l node-role.kubernetes.io/workshop; echo; oc get mcp worksh
 == Building Layered Images
 
 Understanding how layered images are constructed helps troubleshoot deployment issues:
+
+=== Installing Custom RPMs on RHCOS Nodes
+
+RHCOS uses `rpm-ostree` for package management, which allows installing custom RPMs as overlays on the immutable base image. This is useful for applying hotfixes or custom packages without rebuilding the entire OS image.
+
+**Example: Installing a custom RPM package**
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# 1. Download and prepare custom RPM package
+mkdir custom-rpm
+cd custom-rpm
+
+# Example: Custom network tool package
+# Download your custom RPM (replace with actual package)
+wget https://example.com/custom-network-tool-1.0.0.el9.x86_64.rpm
+
+# 2. Copy RPM to the target node
+HOST=<node-ip>
+scp custom-network-tool-1.0.0.el9.x86_64.rpm core@${HOST}:
+
+# 3. SSH to the node and switch to root
+ssh core@${HOST}
+sudo -i
+
+# 4. Check current package status
+rpm -qa | grep network-tool
+
+# 5. Install the custom RPM using rpm-ostree
+cd /home/core/
+rpm-ostree override replace --cache-only custom-network-tool-1.0.0.el9.x86_64.rpm
+
+# 6. Verify the installation
+rpm-ostree status
+rpm -qa | grep custom-network-tool
+
+# 7. Reboot to apply changes
+systemctl reboot
+----
+
+**Key points:**
+- `rpm-ostree override replace` installs the RPM as an overlay
+- Changes persist across reboots but are not part of the base image
+- Use `rpm-ostree override reset <package-name>` to remove custom packages
+- Always reboot after installing custom RPMs to ensure proper integration
+
+**Rollback: Removing custom RPM packages**
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# 1. SSH to the node and switch to root
+HOST=<node-ip>
+ssh core@${HOST}
+sudo -i
+
+# 2. Check current overrides
+rpm-ostree status
+
+# 3. Remove the custom RPM override
+rpm-ostree override reset custom-network-tool
+
+# 4. Verify the rollback
+rpm-ostree status
+rpm -qa | grep custom-network-tool
+
+# 5. Reboot to apply the rollback
+systemctl reboot
+
+# 6. Verify after reboot
+ssh core@${HOST}
+sudo -i
+rpm-ostree status
+rpm -qa | grep custom-network-tool
+----
+
+**Rollback key points:**
+- `rpm-ostree override reset <package-name>` removes the custom package
+- The system reverts to the original package version from the base image
+- Always reboot after rollback to ensure proper system state
+- Use `rpm-ostree override reset --all` to remove all custom overrides
 
 === Image Layering Process
 
@@ -157,7 +265,7 @@ Navigate to the image layering lab directory:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Change to the RHCOS image layering lab directory
-cd troubleshooting-lab/lab-materials/05-os-layering
+cd /home/demo-user/troubleshooting-lab/lab-materials/05-os-layering
 ----
 
 === Deploying the Configuration

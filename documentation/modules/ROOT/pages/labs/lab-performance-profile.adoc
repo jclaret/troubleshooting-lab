@@ -105,7 +105,7 @@ Navigate to the lab scenario:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Change to the performance profile lab directory
-cd troubleshooting-lab/lab-materials/02-performance-profile/lab1-hugepages
+cd /home/demo-user/troubleshooting-lab/lab-materials/02-performance-profile/lab1-hugepages
 ----
 
 === Deploying the Application
@@ -161,26 +161,27 @@ oc replace -k solution/
 
 # Wait for Performance Profile to be applied
 oc get performanceprofile lab1-hugepages -o yaml
+oc get -n openshift-cluster-node-tuning-operator profiles.tuned.openshift.io
 
 # Monitor MachineConfigPool rollout
 oc get mcp workshop -w
 ----
 
-En la configuracion desplegada encontraremos errores del tipo 
+In the deployed configuration we will find errors of the type 
 
       message: failed to find MCP with the node selector that matches labels "node.role.kubernetes.io/performance=fix-me"
       reason: GettingMachineConfigPoolFailed
       status: "True"
       type: Degraded
 
-y 
+and 
 
       message: failed to find MCP with the node selector that matches labels "node.role.kubernetes.io/workshop="
       reason: GettingMachineConfigPoolFailed
       status: "True"
       type: Degraded
 
-Se espera que el nodo aplique la configuracion del Performance Profile y reinicie el nodo perteneciente al MCP workshop.
+The node is expected to apply the Performance Profile configuration and restart the node belonging to the workshop MCP.
 ====
 
 === Verification
@@ -215,7 +216,7 @@ Navigate to the second lab scenario:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Change to the second performance profile lab directory
-cd troubleshooting-lab/lab-materials/02-performance-profile/lab2-tuned
+cd /home/demo-user/troubleshooting-lab/lab-materials/02-performance-profile/lab2-tuned
 ----
 
 === Deploying the Application
@@ -241,11 +242,11 @@ oc logs deployment/conntrack-app -n conntrack-app
 
 **Step-by-Step Investigation:**
 
-1. **What is the current status of the application pods?**
-2. **Are there any errors in the pod logs or events?**
-3. **What is the status of the Tuned CRD and profiles?**
-4. **Are there any errors in the Node Tuning Operator logs?**
-5. **What do the tuned daemon logs show on the nodes?**
+- **What is the current status of the application pods?**
+- **Are there any errors in the pod logs or events?**
+- **What is the status of the Tuned CRD and profiles?**
+- **Are there any errors in the Node Tuning Operator logs?**
+- **What do the tuned daemon logs show on the nodes?**
 
 Use the troubleshooting commands from the "Performance Profile Troubleshooting commands" section above to investigate the issue systematically. Focus on CRDs and operator logs.
 
