@@ -117,7 +117,7 @@ oc get pods -o custom-columns="NAME:.metadata.name,SCC:.metadata.annotations.ope
 * **seLinuxContext**: SELinux context requirements
 * **users/groups**: ServiceAccounts or users authorized to use the SCC
 
-== Exercise 1: Troubleshooting Kernel Module Application
+== Exercise 1: Troubleshooting Application permissions
 
 === Understanding the Application
 
@@ -143,19 +143,18 @@ oc get pods -n module-app -w
 
 === Investigation Challenge
 
-**YOUR MISSION**: Investigate why the application is failing to load the kernel module and resolve the security context issues.
+**YOUR MISSION**: Investigate why the application is failing and understand the SCC selection process.
 
 **What to check:**
 
 - **Pod Status**: Is the pod running or failing?
 - **Application Logs**: What error messages appear when trying to load the kernel module?
 - **SCC Applied**: What Security Context Constraint is currently applied to the pod?
-- **Security Context**: What security context is configured for the container?
-- **Permission Errors**: Are there any capability-related failures?
+- **ServiceAccount**: Does the ServiceAccount exist and have proper permissions?
 
 **Step-by-Step Investigation:**
 
-1. **Check pod status and events:**
+1. **Check pod status and logs:**
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
@@ -163,52 +162,102 @@ oc get pods -n module-app -w
 # Check pod status
 oc get pods -n module-app
 
-# Check pod events for any errors
-oc describe pod -l app=kernel-mod-app -n module-app
-----
-
-2. **Examine application logs:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check application logs for kernel module loading errors
+# Check application logs for errors
 oc logs -l app=kernel-mod-app -n module-app
-----
 
-3. **Analyze security context:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
 # Check what SCC is applied to the pod
 oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].metadata.annotations.openshift\.io/scc}'
-
-# Check the security context configuration
-oc describe pod -l app=kernel-mod-app -n module-app | grep -A 10 "Security Context"
 ----
+
+2. **Check ServiceAccount and permissions:**
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check if ServiceAccount exists
+oc get serviceaccount module-loader -n module-app
+
+# Check SCC permissions for the ServiceAccount
+oc adm policy who-can use scc scc-sysmodule-min
+----
+
+3. **Analyze SCC selection using audit logs:**
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Gather audit logs
+oc adm must-gather -- /usr/bin/gather_audit_logs
+
+# Search for SCC admission decisions
+find must-gather* -ipath '*kube-apiserver*/*audit*.log.gz' | xargs zgrep -h securitycontextconstraints.admission.openshift.io | grep module-app | jq '.'
+----
+
 
 .Click to reveal the solution
 [%collapsible]
 ====
 **Understanding the problem:**
 
-The application is failing because it requires the `SYS_MODULE` capability to load kernel modules, but the default SCC (`restricted`) doesn't allow this capability. The pod will either fail to start or the application will fail when trying to load the kernel module.
+The application is failing because:
+1. The ServiceAccount `module-loader` doesn't exist
+2. The application uses `SYS_ADMIN` capability instead of `SYS_MODULE`
+3. The custom SCC `scc-sysmodule-min` exists but has no users assigned to it
 
 **Solution Implementation:**
 
-Apply the solution that creates the necessary security configuration:
+1. **Create the ServiceAccount:**
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Create the ServiceAccount
+oc create serviceaccount module-loader -n module-app
+----
+
+2. **Grant SCC permissions to the ServiceAccount:**
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Grant SCC permissions
+oc adm policy add-scc-to-user scc-sysmodule-min -z module-loader -n module-app
+----
+
+3. **Update the deployment with correct capabilities:**
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Apply the corrected deployment
+oc apply -f solution/deployment.yaml
+----
+
+**Verification:**
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Apply the complete solution
-oc apply -k solution/
+# Watch the deployment rollout
+oc rollout status deployment/kernel-mod-app -n module-app
 
-# Verify the SCC binding
-oc adm policy who-can use scc scc-sysmodule
+# Check the new pod's SCC
+oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].metadata.annotations.openshift\.io/scc}'
+
+# Check application logs for successful module loading
+oc logs -l app=kernel-mod-app -n module-app --tail=20
+
+# Verify the module is loaded in the kernel
+oc exec -n module-app deployment/kernel-mod-app -- lsmod | grep hello
+
+# Verify SCC permissions
+oc adm policy who-can use scc scc-sysmodule-min
 ----
+
+====
+
+
 
 **Verification and Analysis:**
 
@@ -231,58 +280,6 @@ oc exec -n module-app deployment/kernel-mod-app -- lsmod | grep hello
 # Verify the SYS_MODULE capability is present
 oc exec -n module-app deployment/kernel-mod-app -- cat /proc/self/status | grep CapEff
 ----
-
-**Understanding the Solution Components:**
-
-Now let's examine the security components that were created:
-
-1. **Examine the custom SCC:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# View the custom SCC configuration
-oc get scc scc-sysmodule -o yaml
-
-# Check what capabilities are allowed
-oc describe scc scc-sysmodule
-----
-
-2. **Review the ServiceAccount:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check the ServiceAccount
-oc get serviceaccount module-loader -n module-app -o yaml
-
-# Verify SCC binding
-oc adm policy who-can use scc scc-sysmodule
-----
-
-3. **Analyze the security context:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check the deployment's security context
-oc get deployment kernel-mod-app -n module-app -o yaml | grep -A 20 "securityContext"
-
-# Verify the pod's security context
-oc describe pod -l app=kernel-mod-app -n module-app | grep -A 15 "Security Context"
-----
-
-4. **Test manual module operations:**
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Test manual module operations
-oc exec -n module-app deployment/kernel-mod-app -- rmmod hello
-oc exec -n module-app deployment/kernel-mod-app -- insmod /app/hello.ko
-oc exec -n module-app deployment/kernel-mod-app -- lsmod | grep hello
-----
-====
 
 == Lab Summary
 
