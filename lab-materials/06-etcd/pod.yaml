@@ -15,23 +15,25 @@ spec:
   hostNetwork: true
   containers:
   - name: debug
-    image: quay.io/jclaret/lab/busybox:latest
+    image: quay.io/quay/busybox
     command:
       - /bin/sh
       - -c
       - |
-        echo "Esperando antes de matar etcd..."
+        echo "Waiting before disrupting etcd..."
         sleep 10
-        echo "Buscando contenedor etcd..."
-        chroot /host crictl ps -a | grep etcd || echo "ETCD no encontrado"
+        echo "Looking for etcd container..."
+        chroot /host crictl ps -a | grep etcd || echo "ETCD not found"
         ETCD_ID=$(chroot /host crictl ps -a | grep "etcd " | grep Running | awk '{print $1}')
         if [ ! -z "$ETCD_ID" ]; then
-          echo "Parando etcd ($ETCD_ID)..."
+          echo "Stopping etcd container ($ETCD_ID)..."
           chroot /host crictl stop "$ETCD_ID"
-          chroot /host /usr/bin/nc -lk -p 2379 -e /bin/false
+          echo "Waiting for etcd to stop..."
+          sleep 5
         fi
-        echo "Arrancando nc en 2379..."
-        chroot /host /usr/bin/nc -lk -p 2379 -e /bin/false
+        echo "Starting netcat on port 2379 to block etcd..."
+        # Use a different approach to block the port
+        chroot /host /bin/sh -c 'while true; do nc -l -p 2379 -e /bin/false 2>/dev/null || sleep 1; done'
     securityContext:
       privileged: true
     volumeMounts:

@@ -50,19 +50,6 @@ oc logs -n openshift-etcd-operator deployment/etcd-operator --tail=50
 oc logs -n openshift-etcd etcd-$NODE --tail=50
 oc logs -n openshift-etcd etcd-$NODE --previous || echo "No previous logs available"
 
-# Check for port conflicts on control plane nodes
-oc debug node/$NODE -- chroot /host netstat -tulpn | grep 2379
-oc debug node/$NODE -- chroot /host ss -tlnp | grep 2379
-
-# Check etcd data directory and permissions
-oc debug node/$NODE -- chroot /host ls -la /var/lib/etcd/
-
-# Look for etcd process conflicts
-oc debug node/$NODE -- chroot /host ps aux | grep etcd
-
-# Check cluster events for etcd-related issues
-oc get events --sort-by='.lastTimestamp' | grep -i "etcd\|machineconfig"
-
 # Monitor etcd cluster operator status
 oc get co etcd -w
 ----
@@ -121,8 +108,9 @@ cd /home/demo-user/troubleshooting-lab/lab-materials/06-etcd
 # Deploy the exercise scenario
 oc apply -k .
 
-# Monitor cluster operator status immediately
-watch oc get co etcd
+# Wait 5min until etcd got DEGRADED
+# Monitor cluster operator status
+watch "oc get co etcd; oc get pod -n openshift-etcd"
 ----
 
 [WARNING]
