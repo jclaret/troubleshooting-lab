@@ -121,6 +121,9 @@ oc apply -k .
 
 # Check application status
 oc get pods -n hugepages-web
+
+# Check "workshop MCP and node restart"
+watch "oc get mcp workshop; oc get nodes"
 ----
 
 === Investigation Challenge
@@ -233,7 +236,6 @@ oc apply -k .
 # Check application status
 oc get pods -n conntrack-app
 oc describe pod -n conntrack-app
-oc logs deployment/conntrack-app -n conntrack-app
 ----
 
 === Investigation Challenge
@@ -257,6 +259,7 @@ Use the troubleshooting commands from the "Performance Profile Troubleshooting c
 [%collapsible]
 ====
 **Understanding the problem:**
+
 - The Tuned profile has a wrong MCP configuration
 - The Tuned profile has syntax errors in the kernel parameter configuration
 - The `net.netfilter.nf_conntrack_max` parameter value is incorrectly formatted
@@ -269,6 +272,9 @@ Apply the corrected Tuned profile:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
+# Check application logs
+oc logs deployment/conntrack-app -n conntrack-app
+
 # Remove the broken Tuned profile
 oc delete -f tuned.yaml
 
@@ -288,8 +294,12 @@ oc get -n openshift-cluster-node-tuning-operator pods -o wide
 TUNED_POD=$(oc get pod -n openshift-cluster-node-tuning-operator -l openshift-app=tuned -o jsonpath='{.items[0].metadata.name}')
 oc logs -n openshift-cluster-node-tuning-operator $TUNED_POD
 
-ERROR    tuned.utils.commands: Writing to file '/proc/sys/net/netfilter/nf_conntrack_max' error: '[Errno 22] Invalid argument'
 ----
+
+In the deployed configuration we will find errors of the type or Tuned not being to be applied because of an error in the kernel parameter configuration of the selector
+
+      ERROR    tuned.utils.commands: Writing to file '/proc/sys/net/netfilter/nf_conntrack_max' error: '[Errno 22] Invalid argument'
+
 ====
 
 === Verification
