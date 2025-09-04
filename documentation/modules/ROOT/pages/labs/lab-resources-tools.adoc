@@ -282,7 +282,372 @@ When engaging Red Hat Support, provide:
 * Clear problem description with timeline of events
 * Steps already taken and their outcomes as well as the reproducer
 
-== Exercise 5: Analyzing Must-Gather Data with OMC
+== Exercise 5: Analyzing SosReport Data with XSOS
+
+=== Understanding XSOS (SosReport Examiner)
+
+The `xsos` tool is a powerful utility for analyzing sosreport archives offline. It provides instant system summaries by parsing and formatting data from dozens of files and commands within a sosreport, making it easy to quickly understand system state, resource utilization, and potential issues without manually navigating through hundreds of files.
+
+=== Installing XSOS
+
+Install the `xsos` tool on your local system using multiple methods:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Method 1: Direct download and install to /usr/local/bin
+curl -sL https://raw.githubusercontent.com/ryran/xsos/master/xsos | sudo tee /usr/local/bin/xsos > /dev/null && sudo chmod +x /usr/local/bin/xsos
+
+# Method 2: Install via RPM (recommended for Red Hat systems)
+sudo yum install -y https://people.redhat.com/rsawhill/rpms/latest-xsos.rpm
+
+# Method 3: Quick test without installation
+curl -Lo ./xsos bit.ly/xsos-direct; chmod +x ./xsos; ./xsos -ya
+
+# Verify installation
+xsos -h
+----
+
+=== Basic SosReport Analysis
+
+Extract and analyze a sosreport using `xsos`:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Extract the sosreport archive
+tar -xf sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz.tar.xz
+
+# Navigate to the extracted directory
+cd sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz
+
+# Run basic system overview
+xsos
+
+# Get operating system and memory information
+xsos -om
+
+# Check CPU, PCI devices, and network interfaces
+xsos -cln
+----
+
+=== Advanced System Analysis
+
+Use specific `xsos` modules for targeted analysis:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Analyze network interfaces and configuration
+xsos -e
+
+# Check disk usage and filesystem information
+xsos -d
+
+# Review process information and resource usage
+xsos -p
+
+# Examine system logs for errors and warnings
+xsos -l
+
+# Check system services and their status
+xsos -s
+
+# Analyze kernel modules and drivers
+xsos -k
+----
+
+=== Advanced XSOS Examples
+
+Use specialized `xsos` options for detailed system analysis:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Basic system overview with IP scrubbing for security
+xsos --os --mem --scrub-ip
+
+# BIOS information with network details and MAC address scrubbing
+xsos --bios --ip --scrub-mac
+
+# CPU, PCI devices, and network interfaces
+xsos --cpu --lspci --netdev
+
+# Network interface details and configuration
+xsos --ethtool
+
+# Bonding configuration and status
+xsos --bonding
+
+# Process information with resource usage
+xsos --ps
+
+# Kernel crash dump configuration
+xsos --kdump
+
+# System kernel parameters
+xsos --sysctl
+
+# CPU and interrupt information
+xsos --cpu --intrupt
+
+# Network soft interrupt statistics
+xsos --softirq
+----
+
+=== XSOS Output Examples
+
+The `xsos` tool provides colorized, formatted output that makes system analysis intuitive:
+
+[.lines_space]
+[.console-output]
+[source,text]
+----
+# xsos (basic overview)
+Operating System:
+  Hostname: ip-10-0-39-122.ec2.internal
+  Kernel: 4.18.0-425.3.1.el8.x86_64
+  Architecture: x86_64
+  Uptime: 2 days, 3 hours, 45 minutes
+
+Memory Information:
+  Total Memory: 15.6 GiB
+  Available Memory: 8.2 GiB
+  Memory Usage: 47.4%
+
+# xsos --os --mem --scrub-ip
+Operating System:
+  Hostname: ip-10-0-39-122.ec2.internal
+  Kernel: 4.18.0-425.3.1.el8.x86_64
+  Architecture: x86_64
+  Uptime: 2 days, 3 hours, 45 minutes
+
+Memory Information:
+  Total Memory: 15.6 GiB
+  Available Memory: 8.2 GiB
+  Memory Usage: 47.4%
+  Swap Total: 2.0 GiB
+  Swap Used: 0.0 GiB
+
+Network Information (IPs scrubbed):
+  eth0: UP, 1000 Mbps, 10.0.39.xxx/24
+  lo: UP, 65536 Mbps, 127.0.0.1/8
+
+# xsos --cpu --lspci --netdev
+CPU Information:
+  Model: Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz
+  Cores: 2
+  Threads: 4
+  Load Average: 0.15, 0.12, 0.08
+
+PCI Devices:
+  00:00.0 Host bridge: Intel Corporation 440FX - 82441FX PMC
+  00:01.0 ISA bridge: Intel Corporation 82371SB PIIX3 ISA
+  00:01.1 IDE interface: Intel Corporation 82371SB PIIX3 IDE
+
+Network Interfaces:
+  eth0: UP, 1000 Mbps, 10.0.39.122/24
+  lo: UP, 65536 Mbps, 127.0.0.1/8
+
+# xsos --ethtool
+Network Interface Details:
+  eth0:
+    Link detected: yes
+    Speed: 1000 Mb/s
+    Duplex: Full
+    Auto-negotiation: on
+    Link partner: 1000baseT/Full
+
+# xsos --ps
+Process Information:
+  Top CPU-using processes:
+    USER     PID    %CPU  %MEM  VSZ-MiB  RSS-MiB  TTY    STAT  START  TIME      COMMAND  
+    root     18329  104   0.0   50       2        pts/6  R+    10:33  0:03      /bin/netstat
+    oracle   11160  19.7  59.3  146      38174    ?      Ss    Jun30  9012:36   oracleCRELSP4
+
+  Top MEM-using processes:
+    USER     PID    %CPU  %MEM  VSZ-MiB  RSS-MiB  TTY    STAT  START  TIME      COMMAND  
+    oracle   7847   0.0   59.4  249      38257    ?      Ss    Jun30  0:52      ora_diag_CRELSP4
+    oracle   1912   0.0   59.3  160      38185    ?      Ss    Jul22  12:29     ora_j001_CRELSP4
+----
+
+=== Comprehensive System Summary
+
+Generate detailed system reports for support cases:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Full system analysis with all modules
+xsos -a
+
+# System overview with memory and CPU details
+xsos -omc
+
+# Network and storage analysis
+xsos -end
+
+# Process and service analysis
+xsos -ps
+
+# Custom combination for troubleshooting
+xsos -omcln
+----
+
+=== XSOS Output Examples
+
+The `xsos` tool provides colorized, formatted output that makes system analysis intuitive:
+
+[.lines_space]
+[.console-output]
+[source,text]
+----
+# xsos -om output example
+Operating System:
+  Hostname: ip-10-0-39-122.ec2.internal
+  Kernel: 4.18.0-425.3.1.el8.x86_64
+  Architecture: x86_64
+  Uptime: 2 days, 3 hours, 45 minutes
+
+Memory Information:
+  Total Memory: 15.6 GiB
+  Available Memory: 8.2 GiB
+  Memory Usage: 47.4%
+  Swap Total: 2.0 GiB
+  Swap Used: 0.0 GiB
+
+# xsos -cln output example
+CPU Information:
+  Model: Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz
+  Cores: 2
+  Threads: 4
+  Load Average: 0.15, 0.12, 0.08
+
+Network Interfaces:
+  eth0: UP, 1000 Mbps, 10.0.39.122/24
+  lo: UP, 65536 Mbps, 127.0.0.1/8
+----
+
+=== Troubleshooting with XSOS
+
+Use `xsos` for specific troubleshooting scenarios:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check for high memory usage processes
+xsos -p | grep -E "MEM|RSS"
+
+# Analyze network connectivity issues
+xsos -e | grep -E "UP|DOWN|ERROR"
+
+# Review system logs for critical errors
+xsos -l | grep -i "error\|critical\|fatal"
+
+# Check disk space and filesystem health
+xsos -d | grep -E "Usage|Available|Mounted"
+
+# Examine system services status
+xsos -s | grep -E "active|failed|inactive"
+----
+
+=== XSOS for Support Case Preparation
+
+Generate comprehensive reports for Red Hat Support:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Create a complete system analysis report
+xsos -a > system-analysis-report.txt
+
+# Generate specific component reports
+xsos -om > memory-cpu-report.txt
+xsos -end > network-storage-report.txt
+xsos -ps > processes-services-report.txt
+
+# Create a custom report for specific troubleshooting
+xsos -omcln > troubleshooting-report.txt
+----
+
+=== XSOS Help and Configuration
+
+Access comprehensive help and configuration options:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Basic help
+xsos -h
+
+# Verbose help with all options
+xsos --help
+
+# Show version information
+xsos --version
+
+# Run with auto-paging (less)
+xsos --less
+
+# Run with more pager
+xsos --more
+
+# Disable color output
+xsos --nocolor
+
+# Change memory/network units (k, m, g, t)
+xsos --unit g
+
+# Show all available options
+xsos --help | grep -E "^  -"
+----
+
+=== XSOS Environment Variables
+
+Configure `xsos` behavior using environment variables:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Set default unit for memory and network display
+export XSOS_UNIT=g
+
+# Configure process display unit
+export XSOS_PS_UNIT=m
+
+# Set custom color scheme
+export XSOS_COLOR=1
+
+# Configure pager behavior
+export XSOS_PAGER=less
+
+# Run xsos with custom settings
+xsos -om
+----
+
+[NOTE]
+====
+XSOS is particularly useful for:
+
+* **Quick System Overview**: Instant understanding of system state and resources
+* **Offline Analysis**: Analyze sosreports without requiring system access
+* **Support Case Preparation**: Generate comprehensive system reports
+* **Troubleshooting**: Quickly identify resource constraints and configuration issues
+* **Historical Analysis**: Examine system state from specific time periods
+
+Reference: https://github.com/ryran/xsos[XSOS GitHub Repository]
+====
+
+== Exercise 6: Analyzing Must-Gather Data with OMC
 
 === Understanding OMC (OpenShift Must-Gather Client)
 
@@ -385,6 +750,7 @@ This foundational lab established essential skills for OpenShift cluster health 
 * Create comprehensive must-gather collections for different troubleshooting scenarios
 * Generate and extract node-level sosreports for deep system analysis
 * Analyze must-gather data using the `omc` tool for offline investigation
+* Analyze sosreport data using the `xsos` tool for comprehensive system analysis
 * Apply Red Hat's systematic approach to diagnostic data collection
 
 == Additional Resources
@@ -392,4 +758,5 @@ This foundational lab established essential skills for OpenShift cluster health 
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data[Gathering data about your cluster]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/support/gathering-cluster-data#about-sosreport_gathering-cluster-data[SosReport Documentation]
 * link:https://github.com/gmeghnag/omc[OMC - OpenShift Must-Gather Client]
+* link:https://github.com/ryran/xsos[XSOS - SosReport Examiner]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html-single/support/index#support-overview-troubleshooting-issues[Troubleshooting issues]
