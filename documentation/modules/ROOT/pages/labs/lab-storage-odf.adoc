@@ -218,8 +218,6 @@ oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o custom-columns="NA
 
 == Exercise 2: File Storage Troubleshooting
 
-=== Problem Definition: File Upload Volume Issues
-
 Navigate to the file storage troubleshooting exercise:
 
 [.lines_space]
@@ -246,11 +244,16 @@ oc describe storageclass ocs-storagecluster-cephfs
 oc get route image-uploader -n odf-file -o jsonpath='{.spec.host}'
 ----
 
-The application is expected to function on the previous HTTP route with 3 pods running in Running state.
+**Expected Application Behavior:**
+
+- The application is expected to function on the previous HTTP route with 3 pods in Running state.
+- Once all pods are in Running state, you should be able to upload all the files found in the directory `/home/demo-user/troubleshooting-lab/Photos` through the web interface. If you encounter any errors during the upload process, check the pod logs to understand what's happening.
+- Application namespace is odf-file
+
 
 === Investigation Challenge
 
-**YOUR MISSION**: Investigate the file storage capacity issue and identify the root cause.
+**YOUR MISSION**: Investigate the file storage issues and identify the root causes preventing the application from working properly.
 
 **What to check:**
 
@@ -259,6 +262,16 @@ The application is expected to function on the previous HTTP route with 3 pods r
 - What is the current AccessModes of the PVC?
 - What happens when you try to upload files through the web interface?
 - What type of storage is being used and can it be expanded?
+- Can you change the AccessMode of an existing PVC?
+- How could you resolve both the size and access mode issues?
+
+**Investigation Steps:**
+
+1. **Check pod status**: Are all 3 pods running or are some stuck in ContainerCreating/Pending?
+2. **Examine PVC configuration**: Look at the current size and access modes
+3. **Test file upload**: Try uploading a photo through the web interface
+4. **Check pod logs**: Look for specific error messages when uploads fail
+5. **Investigate storage class**: Understand what type of storage is being used
 
 .Click to reveal the solution
 [%collapsible]
@@ -275,11 +288,28 @@ Execute the fix script to recreate the PVC with proper size and access mode:
 chmod +x solution/fix-pvc.sh
 ./solution/fix-pvc.sh
 ----
+
+**During the initial deployment, you will encounter 2 problems:**
+
+- **AccessMode Issue**: This will cause errors and leave pods in ContainerCreating or Pending state
+
+   ```
+   Warning  FailedAttachVolume  2m51s  attachdetach-controller  Multi-Attach error for volume "pvc-d1f6cf6e-ee78-44a8-92fd-49f361113b73" Volume is already used by pod(s) image-uploader-745bb8fb7b-cb872, image-uploader-745bb8fb7b-ftmp4
+   ```
+
+- **PVC Size Issue**: This will prevent file uploads with errors like:
+
+   ```
+   OSError: [Errno 122] Disk quota exceeded
+   ```
+
+**Expected Behavior After Fix:**
+After resolving both issues, the application should successfully upload all photos from the `/home/demo-user/troubleshooting-lab/Photos` directory through the web interface, with all 3 pods running and sharing the same storage volume.
+
+
 ====
 
-== Exercise 3: Storage Access Issues
-
-=== Problem Definition: Pod Scheduling Issues
+== Exercise 3: Block Storage Troubleshooting
 
 Navigate to the storage access exercise:
 
@@ -321,9 +351,7 @@ oc describe pod -l app=rbd-hello -n odf-block | grep -A 10 Events
 Investigate the storage access mode issue:
 
 1. **Why can't multiple pods attach to the same volume?**
-2. **What are the different access modes for persistent volumes?**
-3. **What storage class is being used and what are its capabilities?**
-4. **When would you use different access modes?**
+2. **What storage class is being used and what are its capabilities?**
 
 .Click to reveal the solution
 [%collapsible]
@@ -342,90 +370,33 @@ chmod +x solution/fix-replicas.sh
 ----
 ====
 
-== Exercise 4: Storage Authentication Issues
+**Expected Application Behavior:**
+The application should display a "Hello World" message accessible via HTTP route once properly configured.
 
-=== Problem Definition: Application Authentication Problems
+**Problem Analysis:**
+Initially, the deployment will have 3 pods trying to use a `ocs-storagecluster-ceph-rbd` storage class with ReadWriteOnce (RWO) access mode. This creates a multi-attach error because RWO volumes can only be attached to one pod at a time.
 
-Navigate to the storage authentication exercise:
+**Error Details:**
+You will see pods stuck in different states due to the multi-attach issue:
 
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Change to the storage authentication lab directory
-cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/01-odf-s3
+```
+oc get pod
+NAME                         READY   STATUS     RESTARTS   AGE
+rbd-hello-74f4cbcd4c-76p6p   0/1     Init:0/1   0          2m3s
+rbd-hello-74f4cbcd4c-hbhwn   0/1     Init:0/1   0          2m3s
+rbd-hello-74f4cbcd4c-t6js6   0/1     Running    0          2m3s
+```
 
-# Deploy the exercise scenario
-oc apply -k .
+**Error Message:**
+```
+Warning  FailedAttachVolume  2m20s  attachdetach-controller  Multi-Attach error for volume "pvc-4bffb8ac-1ab2-4b97-b1fd-4fcadbd2a64d" Volume is already used by pod(s) rbd-hello-74f4cbcd4c-t6js6
+```
 
-# Monitor application deployment
-oc get pods -n odf-s3
-oc get obc -n odf-s3
-----
+**Root Cause:**
+The application is configured with 3 replicas but uses a ReadWriteOnce (RWO) Persistent Volume Claim, which can only be attached to one pod at a time. This causes the multi-attach error and prevents multiple pods from running simultaneously.
 
-=== Information Gathering: Storage Configuration Analysis
-
-Investigate storage connectivity and authentication:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check ObjectBucketClaim status
-oc get obc -n odf-s3
-
-# Examine generated ConfigMap and Secret
-oc get cm img-bucket-a -n odf-s3 -o yaml
-oc get secret img-bucket-a -n odf-s3 -o yaml
-
-# Check application logs for authentication errors
-oc logs -l app=s3-uploader -n odf-s3
-
-# Check current environment configuration
-oc describe deployment s3-uploader -n odf-s3 | grep -A 20 Environment
-
-# Test application connectivity
-URL=$(oc get route s3-uploader -n odf-s3 -o jsonpath='{.spec.host}')
-curl http://$URL/
-
-# Run the test script to check current status
-chmod +x test-s3.sh
-./test-s3.sh
-----
-
-=== Investigation Challenge
-
-**YOUR MISSION**: Investigate the storage authentication issue and identify the root cause.
-
-**What to check:**
-
-- What is the status of the ObjectBucketClaims?
-- Are there any authentication errors in the application logs?
-- Do the bucket names match the credentials being used?
-- What is the relationship between ObjectBucketClaim, ConfigMap, and Secret?
-
-**Investigation questions:**
-
-1. **How does the storage system provision buckets and credentials?**
-2. **What is the relationship between ObjectBucketClaim, ConfigMap, and Secret?**
-3. **How do you troubleshoot storage authentication issues?**
-
-.Click to reveal the solution
-[%collapsible]
-====
-**Solution Implementation: Fixing Storage Configuration**
-
-Execute the fix script to correct the storage configuration:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Execute the fix script
-chmod +x solution/fix-s3.sh
-./solution/fix-s3.sh
-----
-====
+**Solution:**
+To resolve this issue, the deployment should be scaled down to 1 replica since RWO volumes cannot be shared across multiple pods. After scaling down, the application will successfully display the "Hello World" message via the HTTP route.
 
 == Lab Summary
 
