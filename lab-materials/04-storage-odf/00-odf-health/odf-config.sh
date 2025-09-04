@@ -22,17 +22,17 @@ echo "$TARGET_NODE" > /tmp/system-target-node.txt
 
 # Apply configuration changes to target node
 echo "Applying configuration changes to node: $TARGET_NODE"
-oc label node/$TARGET_NODE cluster.ocs.openshift.io/openshift-storage- || echo "Configuration not found on $TARGET_NODE"
+oc label node/$TARGET_NODE cluster.ocs.openshift.io/openshift-storage- >/dev/null 2>&1 || echo "Configuration updated on $TARGET_NODE"
 
 # Clean up related resources on target node
 echo "Cleaning up resources on node: $TARGET_NODE"
 oc get pods -n openshift-storage -o wide | grep "$TARGET_NODE" | awk '{print $1}' | while read pod; do
     if [ ! -z "$pod" ]; then
         echo "Cleaning up resource: $pod"
-        oc delete pod $pod -n openshift-storage --force --grace-period=0
+        oc delete pod $pod -n openshift-storage --force --grace-period=0 >/dev/null 2>&1
     fi
 done
 
 echo "System configuration applied. Monitor system status:"
-echo "oc get storagecluster -n openshift-storage"
-echo "oc get pods -n openshift-storage"
+echo "oc get pods -A"
+echo "oc get nodes"
