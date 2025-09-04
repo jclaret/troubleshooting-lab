@@ -17,7 +17,14 @@ echo "Size: $(oc get pvc upload-data -n odf-file -o jsonpath='{.spec.resources.r
 echo "AccessMode: $(oc get pvc upload-data -n odf-file -o jsonpath='{.spec.accessModes[0]}')"
 echo ""
 
-echo "Deleting existing PVC (this will terminate pods)..."
+echo "Scaling down deployment to avoid PVC conflicts..."
+oc scale deployment image-uploader -n odf-file --replicas=0
+
+echo ""
+echo "Waiting for pods to terminate..."
+sleep 10
+
+echo "Deleting existing PVC..."
 oc delete pvc upload-data -n odf-file
 
 echo ""
@@ -37,7 +44,11 @@ spec:
 EOF
 
 echo ""
-echo "Waiting for pods to restart with new PVC..."
+echo "Scaling deployment back to 3 replicas..."
+oc scale deployment image-uploader -n odf-file --replicas=3
+
+echo ""
+echo "Waiting for pods to start with new PVC..."
 sleep 15
 
 echo "Checking pod status..."

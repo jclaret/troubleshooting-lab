@@ -254,9 +254,9 @@ The application is expected to function on the previous HTTP route with 3 pods r
 
 **What to check:**
 
+- How many pods are actually running and why?
 - What is the current size of the PVC?
 - What is the current AccessModes of the PVC?
-- How many pods are actually running and why?
 - What happens when you try to upload files through the web interface?
 - What type of storage is being used and can it be expanded?
 
