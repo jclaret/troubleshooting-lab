@@ -13,7 +13,6 @@ The troubleshooting exercises are organized into the following specialized areas
 * *OpenShift Deployments - ZTP Workflow*: Zero Touch Provisioning and ACM troubleshooting
 * *GitOps Operator - Sync Flows*: ArgoCD and application synchronization issues
 * *Node Tuning Operator - Performance Profiles*: Performance Profiles troubleshooting
-* *RHCOS Image Layering*: Applying hotfixes and custom configurations
 * *Storage - OpenShift Data Foundation*: Persistent volume and Ceph troubleshooting
 * *OpenShift Security*: Security Context Constraints and application permissions
 * *OpenShift Control Plane - ETCD*: Etcd cluster troubleshooting

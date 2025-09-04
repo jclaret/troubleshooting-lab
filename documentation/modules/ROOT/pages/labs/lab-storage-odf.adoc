@@ -181,27 +181,14 @@ If you discovered that the ODF storage cluster is degraded and OSD pods are fail
 ====
 **Solution Implementation:**
 
-Apply the fix to restore ODF node labeling:
+Execute the fix script to restore ODF node labeling:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Apply the complete solution
-oc apply -k solution/
-
-# Alternative manual steps:
-# 1. Get the list of storage nodes
-STORAGE_NODES=$(oc get nodes -l node-role.kubernetes.io/worker -o name | head -3)
-
-# 2. Restore ODF storage labels
-for node in $STORAGE_NODES; do
-    oc label $node cluster.ocs.openshift.io/openshift-storage=""
-    oc label $node node-role.kubernetes.io/worker=""
-done
-
-# 3. Monitor ODF cluster recovery
-oc get storagecluster -n openshift-storage -w
+# Execute the fix script
+./solution/odf-fix.sh
 ----
 ====
 

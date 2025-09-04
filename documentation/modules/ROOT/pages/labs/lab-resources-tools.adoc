@@ -317,67 +317,22 @@ tar -xf sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz.tar.xz
 # Navigate to the extracted directory
 cd sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz
 
-# Run basic system overview
-xsos
+# Full system analysis with all modules
+xsos -a
 
-# Get operating system and memory information
-xsos -om
+# System overview with memory and CPU details
+xsos -omc
 
 # Check CPU, PCI devices, and network interfaces
-xsos -cln
-----
+xsos -cln .
 
-=== Advanced System Analysis
-
-Use specific `xsos` modules for targeted analysis:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
 # Analyze network interfaces and configuration
-xsos -e
+xsos -e .
 
 # Check disk usage and filesystem information
-xsos -d
+xsos -d .
 
-# Review process information and resource usage
-xsos -p
-
-# Examine system logs for errors and warnings
-xsos -l
-
-# Check system services and their status
-xsos -s
-
-# Analyze kernel modules and drivers
-xsos -k
-----
-
-=== Advanced XSOS Examples
-
-Use specialized `xsos` options for detailed system analysis:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Basic system overview with IP scrubbing for security
-xsos --os --mem --scrub-ip
-
-# BIOS information with network details and MAC address scrubbing
-xsos --bios --ip --scrub-mac
-
-# CPU, PCI devices, and network interfaces
-xsos --cpu --lspci --netdev
-
-# Network interface details and configuration
-xsos --ethtool
-
-# Bonding configuration and status
-xsos --bonding
-
-# Process information with resource usage
+# Review process information
 xsos --ps
 
 # Kernel crash dump configuration
@@ -385,71 +340,6 @@ xsos --kdump
 
 # System kernel parameters
 xsos --sysctl
-
-# CPU and interrupt information
-xsos --cpu --intrupt
-
-# Network soft interrupt statistics
-xsos --softirq
-
-# Full system analysis with all modules
-xsos -a
-
-# System overview with memory and CPU details
-xsos -omc
-
-# Network and storage analysis
-xsos -end
-
-# Process and service analysis
-xsos -ps
-
-# Custom combination for troubleshooting
-xsos -omcln
-----
-
-=== Troubleshooting with XSOS
-
-Use `xsos` for specific troubleshooting scenarios:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check for high memory usage processes
-xsos -p | grep -E "MEM|RSS"
-
-# Analyze network connectivity issues
-xsos -e | grep -E "UP|DOWN|ERROR"
-
-# Review system logs for critical errors
-xsos -l | grep -i "error\|critical\|fatal"
-
-# Check disk space and filesystem health
-xsos -d | grep -E "Usage|Available|Mounted"
-
-# Examine system services status
-xsos -s | grep -E "active|failed|inactive"
-----
-
-=== XSOS for Support Case Preparation
-
-Generate comprehensive reports for Red Hat Support:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Create a complete system analysis report
-xsos -a > system-analysis-report.txt
-
-# Generate specific component reports
-xsos -om > memory-cpu-report.txt
-xsos -end > network-storage-report.txt
-xsos -ps > processes-services-report.txt
-
-# Create a custom report for specific troubleshooting
-xsos -omcln > troubleshooting-report.txt
 ----
 
 [NOTE]
@@ -458,8 +348,6 @@ XSOS is particularly useful for:
 
 * **Quick System Overview**: Instant understanding of system state and resources
 * **Offline Analysis**: Analyze sosreports without requiring system access
-* **Support Case Preparation**: Generate comprehensive system reports
-* **Troubleshooting**: Quickly identify resource constraints and configuration issues
 
 Reference: https://github.com/ryran/xsos[XSOS GitHub Repository]
 ====

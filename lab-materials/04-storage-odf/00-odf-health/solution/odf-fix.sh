@@ -6,17 +6,17 @@
 echo "Applying ODF fix configuration..."
 
 # Read the saved target node name
-if [ -f /tmp/odf-target-node.txt ]; then
-    TARGET_NODE=$(cat /tmp/odf-target-node.txt)
-    echo "Restoring ODF storage label to node: $TARGET_NODE"
+if [ -f /tmp/system-target-node.txt ]; then
+    TARGET_NODE=$(cat /tmp/system-target-node.txt)
+    echo "Restoring system configuration to node: $TARGET_NODE"
     
-    # Restore the ODF storage label
+    # Restore the system configuration
     oc label node/$TARGET_NODE cluster.ocs.openshift.io/openshift-storage=""
     
-    echo "ODF storage label restored to node: $TARGET_NODE"
+    echo "System configuration restored to node: $TARGET_NODE"
 else
-    echo "ERROR: Target node file /tmp/odf-target-node.txt not found!"
-    echo "Please run the odf-config.sh script first to set up the problem scenario."
+    echo "ERROR: Target node file /tmp/system-target-node.txt not found!"
+    echo "Please run the configuration script first to set up the problem scenario."
     exit 1
 fi
 

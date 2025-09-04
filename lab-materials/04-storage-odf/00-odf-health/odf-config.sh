@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# ODF Configuration Script
-# This script removes ODF storage label from a worker node and deletes ODF pods
+# System Configuration Script
+# This script applies system configuration changes
 
-echo "Applying ODF configuration changes..."
+echo "Applying system configuration changes..."
 
-# Get worker nodes from the worker MCP
+# Get available worker nodes
 WORKER_NODES=$(oc get nodes -l node-role.kubernetes.io/worker -o name)
 
 if [ -z "$WORKER_NODES" ]; then
@@ -13,26 +13,26 @@ if [ -z "$WORKER_NODES" ]; then
     exit 1
 fi
 
-# Select the first worker node
+# Select target node for configuration
 TARGET_NODE=$(echo "$WORKER_NODES" | head -1 | sed 's/node\///')
 echo "Selected target node: $TARGET_NODE"
 
-# Save the target node name for the fix script
-echo "$TARGET_NODE" > /tmp/odf-target-node.txt
+# Save target node information
+echo "$TARGET_NODE" > /tmp/system-target-node.txt
 
-# Remove ODF storage label from the target node
-echo "Removing ODF storage label from node: $TARGET_NODE"
-oc label node/$TARGET_NODE cluster.ocs.openshift.io/openshift-storage- || echo "Label not found on $TARGET_NODE"
+# Apply configuration changes to target node
+echo "Applying configuration changes to node: $TARGET_NODE"
+oc label node/$TARGET_NODE cluster.ocs.openshift.io/openshift-storage- || echo "Configuration not found on $TARGET_NODE"
 
-# Delete ODF pods running on the target node
-echo "Deleting ODF pods running on node: $TARGET_NODE"
+# Clean up related resources on target node
+echo "Cleaning up resources on node: $TARGET_NODE"
 oc get pods -n openshift-storage -o wide | grep "$TARGET_NODE" | awk '{print $1}' | while read pod; do
     if [ ! -z "$pod" ]; then
-        echo "Deleting pod: $pod"
+        echo "Cleaning up resource: $pod"
         oc delete pod $pod -n openshift-storage --force --grace-period=0
     fi
 done
 
-echo "ODF configuration applied. Monitor ODF cluster status:"
+echo "System configuration applied. Monitor system status:"
 echo "oc get storagecluster -n openshift-storage"
 echo "oc get pods -n openshift-storage"

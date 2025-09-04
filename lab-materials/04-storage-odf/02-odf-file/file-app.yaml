@@ -1,7 +1,13 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: odf-file
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: upload-data
+  namespace: odf-file
 spec:
   storageClassName: ocs-storagecluster-cephfs
   accessModes: ["ReadWriteOnce"]
@@ -13,6 +19,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: image-uploader
+  namespace: odf-file
 spec:
   replicas: 3
   selector:
@@ -58,6 +65,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: image-uploader
+  namespace: odf-file
 spec:
   selector:
     app: image-uploader
@@ -70,6 +78,7 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: image-uploader
+  namespace: odf-file
 spec:
   to:
     kind: Service
