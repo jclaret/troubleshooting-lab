@@ -229,9 +229,9 @@ oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
 oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o custom-columns="NAME:.metadata.name,LABELS:.metadata.labels"
 ----
 
-== Exercise 2: File Storage (CephFS) Troubleshooting
+== Exercise 2: File Storage Troubleshooting
 
-=== Problem Definition: CephFS Volume Issues
+=== Problem Definition: File Upload Volume Issues
 
 Navigate to the file storage troubleshooting exercise:
 
@@ -239,16 +239,19 @@ Navigate to the file storage troubleshooting exercise:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-cd /home/demo-user/troubleshooting-lab/lab-materials/00-storage-odf/02-odf-file
+cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/02-odf-file
 
-# Deploy file storage application
-oc new-project odf-file
-oc apply -f file-app.yaml
+# Deploy the exercise scenario
+oc apply -k .
+
+# Monitor application deployment
+oc get pods -n odf-file
+oc get pvc -n odf-file
 ----
 
-=== Information Gathering: CephFS Application Analysis
+=== Information Gathering: File Storage Application Analysis
 
-Monitor the file storage application:
+Monitor the file storage application and test file uploads:
 
 [.lines_space]
 [.console-input]
@@ -257,8 +260,9 @@ Monitor the file storage application:
 # Check application deployment status
 oc get pods -n odf-file
 
-# Verify PVC binding
+# Verify PVC binding and size
 oc get pvc -n odf-file
+oc describe pvc upload-data -n odf-file
 
 # Check storage class
 oc describe storageclass ocs-storagecluster-cephfs
@@ -269,37 +273,60 @@ curl http://$ROUTE/
 
 # Try to upload files through web interface
 echo "Try uploading files via the web interface at: http://$ROUTE/"
+echo "Note: You should encounter storage space issues when uploading files"
+
+# Run the test script to check current status
+chmod +x test-upload.sh
+./test-upload.sh
 ----
 
 === Investigation Challenge
 
-Investigate the file storage capacity issue:
+**YOUR MISSION**: Investigate the file storage capacity issue and identify the root cause.
 
-1. **What happens when CephFS volume reaches capacity?**
-2. **How do you expand a CephFS PVC?**
-3. **What is the relationship between CephFS and underlying Ceph storage?**
+**What to check:**
+
+- What is the current size of the PVC?
+- What happens when you try to upload files through the web interface?
+- Are there any error messages in the application logs?
+- What type of storage is being used and can it be expanded?
+- How could you resize the PVC to resolve the storage issue?
+
+**Investigation questions:**
+
+1. **What happens when a file storage volume reaches capacity?**
+2. **What type of storage is being used and can it be expanded?**
+3. **How could you resize the PVC to resolve the storage issue?**
 
 .Click to reveal the solution
 [%collapsible]
 ====
 **Solution Implementation: Expanding File Storage**
 
-Expand the PVC to resolve capacity issues:
+Apply the fix to expand the PVC and resolve capacity issues:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Expand the PVC
+# Apply the complete solution
+oc apply -k solution/
+
+# Alternative manual steps:
+# 1. Expand the PVC
 oc patch pvc upload-data -n odf-file --type=merge -p '{
   "spec": { "resources": { "requests": { "storage": "1Gi" } } }
 }'
 
-# Monitor resize completion
+# 2. Monitor resize completion
 oc describe pvc upload-data -n odf-file | grep -i resize
 
-# Verify application functionality
+# 3. Verify application functionality
 oc rsh -n odf-file $POD df -h /data
+
+# 4. Run fix script
+chmod +x solution/fix-pvc.sh
+./solution/fix-pvc.sh
 ----
 ====
 
@@ -371,25 +398,30 @@ curl http://$ROUTE/
 ----
 ====
 
-== Exercise 4: S3 Object Storage Troubleshooting
+== Exercise 4: Object Storage Troubleshooting
 
-=== Problem Definition: S3 Authentication Issues
+=== Problem Definition: Object Storage Authentication Issues
 
-Navigate to the S3 troubleshooting exercise:
+Navigate to the object storage troubleshooting exercise:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-cd /home/demo-user/troubleshooting-lab/lab-materials/00-storage-odf/01-odf-s3
+# Change to the object storage troubleshooting lab directory
+cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/01-odf-s3
 
-# Deploy S3 application with configuration issues
-oc apply -f s3-app.yaml
+# Deploy the exercise scenario
+oc apply -k .
+
+# Monitor application deployment
+oc get pods -n odf-s3
+oc get obc -n odf-s3
 ----
 
-=== Information Gathering: S3 Configuration Analysis
+=== Information Gathering: Object Storage Configuration Analysis
 
-Investigate S3 connectivity and authentication:
+Investigate object storage connectivity and authentication:
 
 [.lines_space]
 [.console-input]
@@ -402,50 +434,71 @@ oc get obc -n odf-s3
 oc get cm img-bucket-a -n odf-s3 -o yaml
 oc get secret img-bucket-a -n odf-s3 -o yaml
 
-# Check application logs for S3 errors
+# Check application logs for authentication errors
 oc logs -l app=s3-uploader -n odf-s3
 
 # Check current environment configuration
 oc describe deployment s3-uploader -n odf-s3 | grep -A 20 Environment
 
-# Test S3 connectivity
+# Test object storage connectivity
 URL=$(oc get route s3-uploader -n odf-s3 -o jsonpath='{.spec.host}')
 curl http://$URL/
+
+# Run the test script to check current status
+chmod +x test-s3.sh
+./test-s3.sh
 ----
 
 Expected error: Access Denied or authentication failures.
 
 === Investigation Challenge
 
-Debug the S3 authentication problem:
+**YOUR MISSION**: Investigate the object storage authentication issue and identify the root cause.
 
-1. **How does ODF provision S3 buckets and credentials?**
+**What to check:**
+
+- What is the status of the ObjectBucketClaims?
+- Are there any authentication errors in the application logs?
+- Do the bucket names match the credentials being used?
+- What is the relationship between ObjectBucketClaim, ConfigMap, and Secret?
+
+**Investigation questions:**
+
+1. **How does ODF provision object storage buckets and credentials?**
 2. **What is the relationship between ObjectBucketClaim, ConfigMap, and Secret?**
-3. **How do you troubleshoot S3 authentication issues?**
+3. **How do you troubleshoot object storage authentication issues?**
 
 .Click to reveal the solution
 [%collapsible]
 ====
-**Solution Implementation: Fixing S3 Configuration**
+**Solution Implementation: Fixing Object Storage Configuration**
 
-Correct the S3 bucket configuration:
+Apply the fix to correct the bucket and credential configuration:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Fix the ConfigMap reference in deployment
+# Apply the complete solution
+oc apply -k solution/
+
+# Alternative manual steps:
+# 1. Fix the ConfigMap reference in deployment
 oc patch deployment s3-uploader -n odf-s3 --type=json -p='[
   {"op":"replace","path":"/spec/template/spec/containers/0/env/2/valueFrom/configMapKeyRef/name","value":"img-bucket-a"}
 ]'
 
-# Restart deployment
+# 2. Restart deployment
 oc rollout restart deployment/s3-uploader -n odf-s3
 oc rollout status deployment/s3-uploader -n odf-s3
 
-# Test S3 functionality
+# 3. Test object storage functionality
 URL=$(oc get route s3-uploader -n odf-s3 -o jsonpath='{.spec.host}')
 curl http://$URL/
+
+# 4. Run fix script
+chmod +x solution/fix-s3.sh
+./solution/fix-s3.sh
 ----
 ====
 
@@ -453,11 +506,10 @@ curl http://$URL/
 
 This comprehensive ODF troubleshooting lab covered critical storage scenarios:
 
-* **Ceph Health**: Diagnosed and resolved time synchronization issues affecting cluster performance
-* **Capacity Management**: Monitored storage alerts and implemented capacity expansion procedures
-* **File Storage**: Resolved CephFS capacity issues through PVC expansion
-* **Block Storage**: Fixed RBD multi-attach problems by understanding access modes
-* **Object Storage**: Debugged S3 authentication and configuration mismatches
+* **Storage Health**: Diagnosed and resolved node labeling issues affecting cluster performance
+* **File Storage**: Resolved capacity issues through PVC expansion and storage type investigation
+* **Block Storage**: Fixed multi-attach problems by understanding access modes and replica scaling
+* **Object Storage**: Debugged authentication and configuration mismatches in bucket provisioning
 
 == Additional Resources
 
