@@ -234,18 +234,6 @@ oc apply -k .
 # Monitor application deployment
 oc get pods -n odf-file
 oc get pvc -n odf-file
-----
-
-=== Information Gathering: File Storage Application Analysis
-
-Monitor the file storage application and test file uploads:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check application deployment status
-oc get pods -n odf-file
 
 # Verify PVC binding and size
 oc get pvc -n odf-file
@@ -255,17 +243,10 @@ oc describe pvc upload-data -n odf-file
 oc describe storageclass ocs-storagecluster-cephfs
 
 # Test application functionality
-ROUTE=$(oc get route image-uploader -n odf-file -o jsonpath='{.spec.host}')
-curl http://$ROUTE/
-
-# Try to upload files through web interface
-echo "Try uploading files via the web interface at: http://$ROUTE/"
-echo "Note: You should encounter storage space issues when uploading files"
-
-# Run the test script to check current status
-chmod +x test-upload.sh
-./test-upload.sh
+oc get route image-uploader -n odf-file -o jsonpath='{.spec.host}'
 ----
+
+The application is expected to function on the previous HTTP route with 3 pods running in Running state.
 
 === Investigation Challenge
 
@@ -274,68 +255,47 @@ chmod +x test-upload.sh
 **What to check:**
 
 - What is the current size of the PVC?
+- What is the current AccessModes of the PVC?
+- How many pods are actually running and why?
 - What happens when you try to upload files through the web interface?
-- Are there any error messages in the application logs?
 - What type of storage is being used and can it be expanded?
-- How could you resize the PVC to resolve the storage issue?
-
-**Investigation questions:**
-
-1. **What happens when a file storage volume reaches capacity?**
-2. **What type of storage is being used and can it be expanded?**
-3. **How could you resize the PVC to resolve the storage issue?**
 
 .Click to reveal the solution
 [%collapsible]
 ====
-**Solution Implementation: Expanding File Storage**
+**Solution Implementation: Recreating PVC with Correct Configuration**
 
-Apply the fix to expand the PVC and resolve capacity issues:
+Execute the fix script to recreate the PVC with proper size and access mode:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Apply the complete solution
-oc apply -k solution/
-
-# Alternative manual steps:
-# 1. Expand the PVC
-oc patch pvc upload-data -n odf-file --type=merge -p '{
-  "spec": { "resources": { "requests": { "storage": "1Gi" } } }
-}'
-
-# 2. Monitor resize completion
-oc describe pvc upload-data -n odf-file | grep -i resize
-
-# 3. Verify application functionality
-oc rsh -n odf-file $POD df -h /data
-
-# 4. Run fix script
+# Execute the fix script
 chmod +x solution/fix-pvc.sh
 ./solution/fix-pvc.sh
 ----
 ====
 
-== Exercise 3: Block Storage (RBD) Troubleshooting
+== Exercise 3: Storage Access Issues
 
-=== Problem Definition: Multi-Attach Issues
+=== Problem Definition: Pod Scheduling Issues
 
-Navigate to the block storage exercise:
+Navigate to the storage access exercise:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-cd /home/demo-user/troubleshooting-lab/lab-materials/00-storage-odf/03-odf-block
+cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/03-odf-block
 
-# Deploy block storage application with intentional issue
-oc apply -f app-block.yaml
+# Deploy application with intentional issue
+oc apply -k .
 ----
 
-=== Information Gathering: RBD Multi-Attach Investigation
+=== Information Gathering: Storage Access Investigation
 
-Analyze the block storage deployment problem:
+Analyze the storage deployment problem:
 
 [.lines_space]
 [.console-input]
@@ -348,54 +308,51 @@ oc get pods -l app=rbd-hello -n odf-block -o wide
 oc get pvc -n odf-block
 oc describe pvc rbd-hello-pvc -n odf-block
 
+# Check storage class information
+oc get storageclass
+oc describe storageclass ocs-storagecluster-ceph-rbd
+
 # Investigate pod scheduling issues
 oc describe pod -l app=rbd-hello -n odf-block | grep -A 10 Events
 ----
 
-Expected issue: Multiple pods trying to attach the same RWO (ReadWriteOnce) volume.
-
 === Investigation Challenge
 
-Investigate the block storage access mode issue:
+Investigate the storage access mode issue:
 
-1. **Why can't multiple pods attach to the same RBD volume?**
+1. **Why can't multiple pods attach to the same volume?**
 2. **What are the different access modes for persistent volumes?**
-3. **When would you use RWO vs RWX vs ROX?**
+3. **What storage class is being used and what are its capabilities?**
+4. **When would you use different access modes?**
 
 .Click to reveal the solution
 [%collapsible]
 ====
 **Solution Implementation: Fixing Access Mode Issues**
 
-Resolve the multi-attach problem:
+Execute the fix script to resolve the access mode problem:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Scale deployment to single replica
-oc scale deployment/rbd-hello --replicas=1 -n odf-block
-
-# Verify single pod is running
-oc get pods -l app=rbd-hello -n odf-block
-
-# Test application functionality
-ROUTE=$(oc get route rbd-hello -n odf-block -o jsonpath='{.spec.host}')
-curl http://$ROUTE/
+# Execute the fix script
+chmod +x solution/fix-replicas.sh
+./solution/fix-replicas.sh
 ----
 ====
 
-== Exercise 4: Object Storage Troubleshooting
+== Exercise 4: Storage Authentication Issues
 
-=== Problem Definition: Object Storage Authentication Issues
+=== Problem Definition: Application Authentication Problems
 
-Navigate to the object storage troubleshooting exercise:
+Navigate to the storage authentication exercise:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Change to the object storage troubleshooting lab directory
+# Change to the storage authentication lab directory
 cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/01-odf-s3
 
 # Deploy the exercise scenario
@@ -406,9 +363,9 @@ oc get pods -n odf-s3
 oc get obc -n odf-s3
 ----
 
-=== Information Gathering: Object Storage Configuration Analysis
+=== Information Gathering: Storage Configuration Analysis
 
-Investigate object storage connectivity and authentication:
+Investigate storage connectivity and authentication:
 
 [.lines_space]
 [.console-input]
@@ -427,7 +384,7 @@ oc logs -l app=s3-uploader -n odf-s3
 # Check current environment configuration
 oc describe deployment s3-uploader -n odf-s3 | grep -A 20 Environment
 
-# Test object storage connectivity
+# Test application connectivity
 URL=$(oc get route s3-uploader -n odf-s3 -o jsonpath='{.spec.host}')
 curl http://$URL/
 
@@ -436,11 +393,9 @@ chmod +x test-s3.sh
 ./test-s3.sh
 ----
 
-Expected error: Access Denied or authentication failures.
-
 === Investigation Challenge
 
-**YOUR MISSION**: Investigate the object storage authentication issue and identify the root cause.
+**YOUR MISSION**: Investigate the storage authentication issue and identify the root cause.
 
 **What to check:**
 
@@ -451,39 +406,22 @@ Expected error: Access Denied or authentication failures.
 
 **Investigation questions:**
 
-1. **How does ODF provision object storage buckets and credentials?**
+1. **How does the storage system provision buckets and credentials?**
 2. **What is the relationship between ObjectBucketClaim, ConfigMap, and Secret?**
-3. **How do you troubleshoot object storage authentication issues?**
+3. **How do you troubleshoot storage authentication issues?**
 
 .Click to reveal the solution
 [%collapsible]
 ====
-**Solution Implementation: Fixing Object Storage Configuration**
+**Solution Implementation: Fixing Storage Configuration**
 
-Apply the fix to correct the bucket and credential configuration:
+Execute the fix script to correct the storage configuration:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Apply the complete solution
-oc apply -k solution/
-
-# Alternative manual steps:
-# 1. Fix the ConfigMap reference in deployment
-oc patch deployment s3-uploader -n odf-s3 --type=json -p='[
-  {"op":"replace","path":"/spec/template/spec/containers/0/env/2/valueFrom/configMapKeyRef/name","value":"img-bucket-a"}
-]'
-
-# 2. Restart deployment
-oc rollout restart deployment/s3-uploader -n odf-s3
-oc rollout status deployment/s3-uploader -n odf-s3
-
-# 3. Test object storage functionality
-URL=$(oc get route s3-uploader -n odf-s3 -o jsonpath='{.spec.host}')
-curl http://$URL/
-
-# 4. Run fix script
+# Execute the fix script
 chmod +x solution/fix-s3.sh
 ./solution/fix-s3.sh
 ----

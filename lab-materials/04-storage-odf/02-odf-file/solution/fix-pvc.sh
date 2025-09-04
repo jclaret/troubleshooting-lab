@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Fix script for file upload PVC expansion
-# This script expands the PVC to resolve storage space issues
+# Fix script for file upload PVC recreation
+# This script recreates the PVC with correct size and access mode
 
 echo "Fixing file upload storage issue..."
 
@@ -12,25 +12,41 @@ if ! oc get pvc upload-data -n odf-file >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "Current PVC size:"
-oc get pvc upload-data -n odf-file -o jsonpath='{.spec.resources.requests.storage}'
+echo "Current PVC configuration:"
+echo "Size: $(oc get pvc upload-data -n odf-file -o jsonpath='{.spec.resources.requests.storage}')"
+echo "AccessMode: $(oc get pvc upload-data -n odf-file -o jsonpath='{.spec.accessModes[0]}')"
 echo ""
 
-echo "Expanding PVC to 1Gi..."
-oc patch pvc upload-data -n odf-file --type=merge -p '{
-  "spec": { "resources": { "requests": { "storage": "1Gi" } } }
-}'
+echo "Deleting existing PVC (this will terminate pods)..."
+oc delete pvc upload-data -n odf-file
 
 echo ""
-echo "Monitoring PVC expansion..."
-oc describe pvc upload-data -n odf-file | grep -i resize
+echo "Creating new PVC with ReadWriteMany and 1Gi..."
+oc apply -f - <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: upload-data
+  namespace: odf-file
+spec:
+  storageClassName: ocs-storagecluster-cephfs
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 1Gi
+EOF
 
 echo ""
-echo "Waiting for expansion to complete..."
-sleep 10
+echo "Waiting for pods to restart with new PVC..."
+sleep 15
 
-echo "Checking new PVC size:"
-oc get pvc upload-data -n odf-file -o jsonpath='{.spec.resources.requests.storage}'
+echo "Checking pod status..."
+oc get pods -n odf-file
+
+echo ""
+echo "Checking new PVC configuration:"
+echo "Size: $(oc get pvc upload-data -n odf-file -o jsonpath='{.spec.resources.requests.storage}')"
+echo "AccessMode: $(oc get pvc upload-data -n odf-file -o jsonpath='{.spec.accessModes[0]}')"
 echo ""
 
 echo "Checking available space in pod..."
@@ -43,6 +59,7 @@ else
 fi
 
 echo ""
-echo "✅ PVC expansion complete!"
-echo "The PVC is now 1Gi and file uploads should work properly."
+echo "✅ PVC recreation complete!"
+echo "The PVC is now 1Gi with ReadWriteMany access mode."
+echo "All 3 replicas should be running and file uploads should work properly."
 echo "Test by uploading files at: http://$(oc get route image-uploader -n odf-file -o jsonpath='{.spec.host}')"
