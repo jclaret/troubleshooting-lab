@@ -15,6 +15,7 @@ By completing this lab, you will be able to:
 * Analyze ArgoCD application sync history and patterns
 * Map ArgoCD sync operations to specific Git commits
 * Investigate and resolve sync errors with detailed error message analysis
+* Troubleshoot applications in degraded state and identify unhealthy resources
 
 == Exercise 1: Tracking Latest Commits Processed by ArgoCD
 
@@ -31,7 +32,7 @@ Examine the current revision and commit information processed by ArgoCD:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Check current revision synced by ArgoCD for all applications
-oc get applications.argoproj.io -A -o custom-columns="NAME:.metadata.name,NAMESPACE:.metadata.namespace,REVISION:.status.sync.revision,COMMIT:.status.sync.revision"
+oc get applications.argoproj.io -n openshift-gitops 
 
 # Get detailed commit information for a specific application
 APP_NAME="<application-name>"
@@ -578,7 +579,7 @@ echo "=== Recommended Actions ==="
 if [ "$SYNC_STATUS" != "Synced" ]; then
     echo "1. Review error messages above for specific issues"
     echo "2. Check ArgoCD server logs: oc logs -n openshift-gitops deployment/openshift-gitops-server"
-    echo "3. Check application controller logs: oc logs -n openshift-gitops deployment/openshift-gitops-application-controller"
+    echo "3. Check application controller logs: oc logs -n openshift-gitops statefulset/openshift-gitops-application-controller"
     echo "4. Manually trigger sync: argocd app sync $APP_NAME"
     echo "5. Refresh application: argocd app get $APP_NAME --refresh"
 else
@@ -594,6 +595,480 @@ echo "Usage: ./analyze_sync_errors.sh <application-name> [argocd-namespace]"
 # ./analyze_sync_errors.sh my-app openshift-gitops
 ----
 
+=== Troubleshooting Applications in Degraded State
+
+Applications can show as "Degraded" even when synced successfully. This indicates resource-level health issues rather than sync problems:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Identify applications in degraded state
+echo "=== Applications with Degraded Health ==="
+oc get applications.argoproj.io -A -o json | jq -r '
+  .items[] | 
+  select(.status.health.status == "Degraded") | 
+  "🔥 \(.metadata.name) in \(.metadata.namespace): Health=\(.status.health.status), Sync=\(.status.sync.status)"'
+
+# Detailed degraded resource analysis for specific application
+APP_NAME="<application-name>"
+APP_NS="<argocd-namespace>"
+
+echo -e "\n=== Degraded Resources Analysis for $APP_NAME ==="
+
+# Check overall application health
+HEALTH_STATUS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.health.status}')
+HEALTH_MESSAGE=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.health.message}')
+
+echo "Application Health Status: $HEALTH_STATUS"
+echo "Health Message: $HEALTH_MESSAGE"
+
+# Identify which specific resources are degraded
+echo -e "\n=== Resource-Level Health Analysis ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.resources[]? |
+  select(.health.status != "Healthy" and .health.status != null) |
+  "❌ \(.kind)/\(.name) in \(.namespace // "default"):",
+  "   Health: \(.health.status)",
+  "   Message: \(.health.message // "No specific message")",
+  "   Sync Status: \(.status)",
+  ""'
+
+# Check for missing resources (causing degraded state)
+echo "=== Missing Resources Check ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.resources[]? |
+  select(.status == "Missing") |
+  "⚠️  Missing: \(.kind)/\(.name) in \(.namespace // "default")"'
+
+# Check for out-of-sync resources that might cause degradation
+echo -e "\n=== Out-of-Sync Resources ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.resources[]? |
+  select(.status != "Synced") |
+  "🔄 \(.kind)/\(.name) - Status: \(.status)"'
+----
+
+=== Troubleshooting Policy-Based Applications (OCM Policies)
+
+Many ArgoCD applications manage OpenClusterManagement policies for governance and compliance. These applications have specific degradation patterns:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Identify if application manages OCM policies
+echo "=== Policy-Based Application Detection ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.resources[]? |
+  select(.kind == "Policy" or .kind == "PolicySet" or .kind == "PlacementBinding" or .kind == "PlacementRule") |
+  "🔍 Found OCM resource: \(.kind)/\(.name) in \(.namespace // "default")"'
+
+# Check policy compliance status
+echo -e "\n=== Policy Compliance Analysis ==="
+POLICY_NAMESPACES=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.resources[]? | select(.kind == "Policy") | .namespace' | sort -u)
+
+for policy_ns in $POLICY_NAMESPACES; do
+    if [ -n "$policy_ns" ]; then
+        echo "Checking policies in namespace: $policy_ns"
+        
+        # Get policy compliance status
+        oc get policies -n $policy_ns -o custom-columns=NAME:.metadata.name,COMPLIANCE:.status.compliant,CLUSTER:.status.status[0].clustername,STATUS:.status.status[0].compliant 2>/dev/null || echo "  No policies found"
+        
+        # Check policy details for non-compliant policies
+        NON_COMPLIANT_POLICIES=$(oc get policies -n $policy_ns -o json | jq -r '.items[] | select(.status.compliant == "NonCompliant") | .metadata.name' 2>/dev/null)
+        
+        if [ -n "$NON_COMPLIANT_POLICIES" ]; then
+            echo "  📋 Non-compliant policies found:"
+            for policy in $NON_COMPLIANT_POLICIES; do
+                echo "    Policy: $policy"
+                # Get detailed compliance info
+                oc get policy $policy -n $policy_ns -o json | jq -r '
+                  .status.status[]? |
+                  "      Cluster: \(.clustername) - Status: \(.compliant)"' | head -5
+                
+                # Get root cause from replicated policies in managed cluster namespaces
+                AFFECTED_CLUSTERS=$(oc get policy $policy -n $policy_ns -o json | jq -r '.status.status[]?.clustername' 2>/dev/null)
+                for cluster in $AFFECTED_CLUSTERS; do
+                    if [ -n "$cluster" ]; then
+                        REPLICATED_POLICY_NAME="$policy_ns.$policy"
+                        echo "      Root Cause Analysis for $cluster:"
+                        
+                        # Get violation details from managed cluster namespace
+                        VIOLATION_MSG=$(oc get policy $REPLICATED_POLICY_NAME -n $cluster -o json 2>/dev/null | jq -r '
+                          .status.details[]?.history[]? |
+                          select(.message | test("NonCompliant|violation")) |
+                          .message' | head -1)
+                        
+                        if [ -n "$VIOLATION_MSG" ]; then
+                            # Parse and format violations vs notifications
+                            echo "        Violations:"
+                            echo "$VIOLATION_MSG" | grep -o 'violation - [^;]*' | sed 's/violation - /        🔥 /'
+                            echo "        Status Summary:"
+                            echo "$VIOLATION_MSG" | grep -o 'notification - [^;]*' | head -3 | sed 's/notification - /        ✅ /'
+                            
+                            # Highlight critical violations
+                            if echo "$VIOLATION_MSG" | grep -q "couldn't find mapping resource\|CRD deployed\|not as specified"; then
+                                echo "        ⚠️  Critical: Resource definition or CRD issues detected"
+                            fi
+                        else
+                            echo "        Unable to retrieve detailed violation information"
+                        fi
+                    fi
+                done
+            done
+        fi
+        echo ""
+    fi
+done
+
+# Check policy sets and placement
+echo "=== PolicySet and Placement Analysis ==="
+POLICYSET_NAMESPACES=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.resources[]? | select(.kind == "PolicySet") | .namespace' | sort -u)
+
+for ps_ns in $POLICYSET_NAMESPACES; do
+    if [ -n "$ps_ns" ]; then
+        echo "PolicySets in namespace: $ps_ns"
+        oc get policysets -n $ps_ns -o custom-columns=NAME:.metadata.name,COMPLIANCE:.status.compliant,PLACEMENT:.status.placement 2>/dev/null || echo "  No policy sets found"
+        
+        # Check placement bindings
+        echo "  PlacementBindings:"
+        oc get placementbindings -n $ps_ns -o custom-columns=NAME:.metadata.name,POLICY:.subjects[0].name,PLACEMENT:.placementRef.name 2>/dev/null || echo "    No placement bindings found"
+        
+        # Check placement rules
+        echo "  PlacementRules:"
+        oc get placementrules -n $ps_ns -o custom-columns=NAME:.metadata.name,CLUSTERS:.status.decisions[*].clusterName 2>/dev/null || echo "    No placement rules found"
+        echo "    (Note: Empty cluster lists are normal for some policy configurations)"
+        echo ""
+    fi
+done
+
+# Check managed cluster connectivity for policy enforcement
+echo "=== Managed Cluster Status for Policy Enforcement ==="
+MANAGED_CLUSTERS=$(oc get managedclusters -o name | cut -d'/' -f2)
+for cluster in $MANAGED_CLUSTERS; do
+    echo "Cluster: $cluster"
+    CLUSTER_STATUS=$(oc get managedcluster $cluster -o jsonpath='{.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status}')
+    CLUSTER_JOINED=$(oc get managedcluster $cluster -o jsonpath='{.status.conditions[?(@.type=="ManagedClusterJoined")].status}')
+    echo "  Available: $CLUSTER_STATUS, Joined: $CLUSTER_JOINED"
+    
+    # Check if cluster has policy compliance issues
+    if [ "$CLUSTER_STATUS" = "True" ] && [ "$CLUSTER_JOINED" = "True" ]; then
+        echo "  ✅ Cluster ready for policy enforcement"
+    else
+        echo "  ❌ Cluster connectivity issues may affect policy compliance"
+    fi
+done
+----
+
+=== Common Policy Degradation Causes and Solutions
+
+Policy-based applications commonly degrade due to specific governance and compliance issues:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Create policy troubleshooting analysis script
+cat << 'EOF' > analyze_policy_degradation.sh
+#!/bin/bash
+
+APP_NAME="$1"
+APP_NS="${2:-openshift-gitops}"
+
+if [ -z "$APP_NAME" ]; then
+    echo "Usage: $0 <application-name> [argocd-namespace]"
+    exit 1
+fi
+
+echo "=== Policy-Based Application Degradation Analysis ==="
+
+# 1. Identify policy resources
+POLICY_RESOURCES=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.resources[]? |
+  select(.kind == "Policy" or .kind == "PolicySet" or .kind == "PlacementBinding" or .kind == "PlacementRule" or .kind == "Placement") |
+  "\(.kind)/\(.name) (\(.namespace // "default"))"')
+
+if [ -z "$POLICY_RESOURCES" ]; then
+    echo "⚠️  No OCM policy resources found in this application"
+    exit 0
+fi
+
+echo "=== Policy-Based Application Analysis ==="
+
+# 2. Check policy compliance
+echo "=== Policy Compliance Issues ==="
+
+# Check individual policies
+POLICIES=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.resources[]? | select(.kind == "Policy") | "\(.name) \(.namespace // "default")"')
+if [ -n "$POLICIES" ]; then
+    echo "$POLICIES" | while read policy_name policy_ns; do
+        if [ -n "$policy_name" ] && [ -n "$policy_ns" ]; then
+            COMPLIANCE=$(oc get policy $policy_name -n $policy_ns -o jsonpath='{.status.compliant}' 2>/dev/null)
+            if [ "$COMPLIANCE" = "NonCompliant" ]; then
+                echo "🔥 Policy $policy_name in $policy_ns: NON-COMPLIANT"
+                
+                # Get specific compliance details with root cause analysis
+                echo "   Compliance details:"
+                oc get policy $policy_name -n $policy_ns -o json | jq -r '
+                  .status.status[]? |
+                  "     Cluster: \(.clustername)",
+                  "     Status: \(.compliant)"' | head -5
+                
+                # Parse root cause from managed cluster namespace policy (replicated policy)
+                MANAGED_CLUSTERS=$(oc get policy $policy_name -n $policy_ns -o json | jq -r '.status.status[]?.clustername' 2>/dev/null)
+                for cluster in $MANAGED_CLUSTERS; do
+                    if [ -n "$cluster" ]; then
+                        # Check if replicated policy exists in managed cluster namespace
+                        REPLICATED_POLICY="$policy_ns.$policy_name"
+                        VIOLATION_DETAILS=$(oc get policy $REPLICATED_POLICY -n $cluster -o json 2>/dev/null | jq -r '
+                          .status.details[]?.history[]? |
+                          select(.message | test("NonCompliant|violation")) |
+                          .message' | head -1)
+                        
+                        if [ -n "$VIOLATION_DETAILS" ]; then
+                            echo "     Root Cause Analysis for $cluster:"
+                            # Parse violations and notifications separately
+                            echo "$VIOLATION_DETAILS" | sed 's/; violation - /\n       🔥 VIOLATION: /g' | sed 's/; notification - /\n       ✅ OK: /g' | sed 's/NonCompliant; //'
+                        else
+                            echo "     Root Cause: Unable to retrieve detailed violation from $cluster namespace"
+                        fi
+                    fi
+                done
+                echo
+            else
+                echo "✅ Policy $policy_name in $policy_ns: $COMPLIANCE"
+            fi
+        fi
+    done
+else
+    echo "No policies found in this application"
+fi
+
+# 3. Check placement issues
+echo "=== Placement Analysis ==="
+
+# Check placement rules
+PLACEMENT_RULES=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.resources[]? | select(.kind == "PlacementRule") | "\(.name) \(.namespace // "default")"')
+if [ -n "$PLACEMENT_RULES" ]; then
+    echo "$PLACEMENT_RULES" | while read pr_name pr_ns; do
+        if [ -n "$pr_name" ] && [ -n "$pr_ns" ]; then
+            DECISIONS=$(oc get placementrule $pr_name -n $pr_ns -o jsonpath='{.status.decisions[*].clusterName}' 2>/dev/null)
+            if [ -n "$DECISIONS" ]; then
+                echo "✅ PlacementRule $pr_name in $pr_ns: Placed on clusters: $DECISIONS"
+            else
+                echo "ℹ️  PlacementRule $pr_name in $pr_ns: No cluster assignments (normal for some policies)"
+            fi
+        fi
+    done
+else
+    echo "No PlacementRules found"
+fi
+
+# Check modern placement API
+PLACEMENTS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.resources[]? | select(.kind == "Placement") | "\(.name) \(.namespace // "default")"')
+if [ -n "$PLACEMENTS" ]; then
+    echo "$PLACEMENTS" | while read placement_name placement_ns; do
+        if [ -n "$placement_name" ] && [ -n "$placement_ns" ]; then
+            DECISIONS=$(oc get placement $placement_name -n $placement_ns -o jsonpath='{.status.decisions[*].clusterName}' 2>/dev/null)
+            if [ -n "$DECISIONS" ]; then
+                echo "✅ Placement $placement_name in $placement_ns: Placed on clusters: $DECISIONS"
+            else
+                echo "ℹ️  Placement $placement_name in $placement_ns: No cluster assignments (normal for some policies)"
+            fi
+        fi
+    done
+else
+    echo "No Placements found"
+fi
+
+# 4. Check managed cluster status
+echo -e "\n=== Managed Cluster Connectivity ==="
+MANAGED_CLUSTERS=$(oc get managedclusters -o name 2>/dev/null | cut -d'/' -f2)
+
+if [ -n "$MANAGED_CLUSTERS" ]; then
+    UNAVAILABLE_CLUSTERS=""
+    for cluster in $MANAGED_CLUSTERS; do
+        AVAILABLE=$(oc get managedcluster $cluster -o jsonpath='{.status.conditions[?(@.type=="ManagedClusterConditionAvailable")].status}' 2>/dev/null)
+        if [ "$AVAILABLE" = "True" ]; then
+            echo "✅ ManagedCluster $cluster: Available"
+        else
+            echo "❌ ManagedCluster $cluster: Not available (Status: $AVAILABLE)"
+            UNAVAILABLE_CLUSTERS="$UNAVAILABLE_CLUSTERS $cluster"
+        fi
+    done
+    
+    if [ -z "$UNAVAILABLE_CLUSTERS" ]; then
+        echo "✅ All managed clusters are available"
+    else
+        echo "⚠️  Unavailable clusters:$UNAVAILABLE_CLUSTERS"
+    fi
+else
+    echo "⚠️  No managed clusters found"
+fi
+
+# 5. Recommendations
+echo -e "\n=== Policy Troubleshooting Recommendations ==="
+echo "1. For non-compliant policies:"
+echo "   - Check policy templates and object definitions"
+echo "   - Verify target cluster has required resources/permissions"
+echo "   - For 'couldn't find mapping resource' errors: Install missing CRDs"
+echo "   - For 'found but not as specified' errors: Check resource configurations"
+echo "   - For 'missing as expected' warnings: Verify intentional resource removal"
+echo "   - Review detailed violation messages from managed cluster namespace policies"
+
+echo "2. For placement issues (if clusters are expected):"
+echo "   - Verify cluster selectors in PlacementRule/Placement"
+echo "   - Check if target clusters are available and joined"
+echo "   - Ensure clusters match the placement criteria"
+echo "   - Note: Empty placement decisions are normal for some policy types"
+
+echo "3. For cluster connectivity:"
+echo "   - Check ManagedCluster agent status: oc get managedcluster"
+echo "   - Verify klusterlet pods on spoke clusters"
+echo "   - Check network connectivity between hub and spokes"
+
+echo "4. For policy enforcement delays:"
+echo "   - Check policy controller logs on managed clusters"
+echo "   - Verify governance framework components are running"
+echo "   - Review policy sync interval configurations"
+
+EOF
+
+chmod +x analyze_policy_degradation.sh
+echo "Created analyze_policy_degradation.sh script for OCM policy troubleshooting"
+echo "Usage: ./analyze_policy_degradation.sh <application-name> [argocd-namespace]"
+
+# Example of enhanced root cause analysis output:
+cat << 'EXAMPLE_OUTPUT'
+
+=== Example Enhanced Policy Analysis Output ===
+
+🔥 Policy mno-vcu-sp-vdtor-4.16.3-24.8.902-w99 in ztp-policies: NON-COMPLIANT
+   Compliance details:
+     Cluster: hpe-mno
+     Status: NonCompliant
+     Root Cause Analysis for hpe-mno:
+       🔥 VIOLATION: machineconfigpools [master] found but not as specified
+       🔥 VIOLATION: machineconfigpools [worker] found but not as specified
+       ✅ OK: namespaces [openshift-storage] found as specified
+       ✅ OK: subscriptions [odf-operator] found as specified in namespace openshift-storage
+
+🔥 Policy vcu-mno-4.16.3-24.8.902-w10 in ztp-policies: NON-COMPLIANT
+   Compliance details:
+     Cluster: hpe-mno
+     Status: NonCompliant
+     Root Cause Analysis for hpe-mno:
+       🔥 VIOLATION: catalogsources [cs-redhat-operator-index] found but not as specified in namespace openshift-marketplace
+       🔥 VIOLATION: couldn't find mapping resource with kind ClusterLogging in API version logging.openshift.io/v1, please check if you have CRD deployed
+       🔥 VIOLATION: couldn't find mapping resource with kind ClusterLogForwarder in API version logging.openshift.io/v1, please check if you have CRD deployed
+       ✅ OK: imagecontentsourcepolicies [operator-0] found as specified
+       ✅ OK: namespaces [openshift-storage] found as specified
+       ⚠️  Critical: Resource definition or CRD issues detected
+
+EXAMPLE_OUTPUT
+----
+
+=== Root Cause Analysis for Degraded State
+
+Create a comprehensive analysis script for degraded applications:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Create degraded state analysis script
+cat << 'EOF' > analyze_degraded_app.sh
+#!/bin/bash
+
+APP_NAME="$1"
+APP_NS="${2:-openshift-gitops}"
+
+if [ -z "$APP_NAME" ]; then
+    echo "Usage: $0 <application-name> [argocd-namespace]"
+    exit 1
+fi
+
+echo "=== Degraded Application Analysis for $APP_NAME ==="
+
+# 1. Basic health check
+HEALTH_STATUS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.health.status}')
+SYNC_STATUS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o jsonpath='{.status.sync.status}')
+
+echo "Application Status:"
+echo "  Health: $HEALTH_STATUS"
+echo "  Sync: $SYNC_STATUS"
+echo
+
+if [ "$HEALTH_STATUS" != "Degraded" ]; then
+    echo "✅ Application is not in degraded state (Health: $HEALTH_STATUS)"
+    exit 0
+fi
+
+# 2. Identify problematic resources
+echo "=== Unhealthy Resources ==="
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '
+  .status.resources[]? |
+  select(.health.status != "Healthy" and .health.status != null) |
+  "🔥 \(.kind)/\(.name) (\(.namespace // "default")): \(.health.status) - \(.health.message // "No message")"
+'
+
+# 3. Check for common degradation causes
+echo -e "\n=== Common Degradation Causes ==="
+
+# Check for failed pods
+FAILED_PODS=$(oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.resources[]? | select(.kind == "Pod" and (.health.status == "Degraded" or .health.status == "Progressing")) | "\(.name) \(.namespace // "default")"')
+if [ -n "$FAILED_PODS" ]; then
+    echo "📋 Checking problematic pods:"
+    echo "$FAILED_PODS" | while read pod_name pod_ns; do
+        if [ -n "$pod_name" ]; then
+            echo "  Pod: $pod_name in $pod_ns"
+            PHASE=$(oc get pod $pod_name -n $pod_ns -o jsonpath='{.status.phase}' 2>/dev/null)
+            READY=$(oc get pod $pod_name -n $pod_ns -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+            echo "    Phase: $PHASE, Ready: $READY"
+            
+            # Get container status
+            oc get pod $pod_name -n $pod_ns -o json 2>/dev/null | jq -r '
+              .status.containerStatuses[]? |
+              select(.ready == false) |
+              "    Container \(.name): Ready=\(.ready), RestartCount=\(.restartCount)"
+            '
+        fi
+    done
+fi
+
+# Check for service endpoint issues
+echo -e "\n📡 Checking service endpoints:"
+oc get applications.argoproj.io $APP_NAME -n $APP_NS -o json | jq -r '.status.resources[]? | select(.kind == "Service") | "\(.name) \(.namespace // "default")"' | while read svc_name svc_ns; do
+    if [ -n "$svc_name" ]; then
+        ENDPOINTS=$(oc get endpoints $svc_name -n $svc_ns -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
+        if [ -z "$ENDPOINTS" ]; then
+            echo "  ❌ Service $svc_name in $svc_ns has no endpoints"
+        else
+            echo "  ✅ Service $svc_name in $svc_ns has endpoints: $(echo $ENDPOINTS | wc -w) addresses"
+        fi
+    fi
+done
+
+# 4. Recommendations
+echo -e "\n=== Recommended Actions ==="
+echo "1. Check pod logs for failed containers:"
+echo "   oc logs -n <namespace> <pod-name> -c <container-name>"
+echo "2. Check recent events in application namespaces:"
+echo "   oc get events -n <namespace> --sort-by=.lastTimestamp"
+echo "3. Verify resource requirements and limits"
+echo "4. Check if application depends on external services"
+echo "5. Review application configuration and secrets"
+echo "6. Force refresh ArgoCD application:"
+echo "   argocd app get $APP_NAME --refresh"
+
+EOF
+
+chmod +x analyze_degraded_app.sh
+echo "Created analyze_degraded_app.sh script for degraded application analysis"
+echo "Usage: ./analyze_degraded_app.sh <application-name> [argocd-namespace]"
+----
+
 === ArgoCD Log Analysis for Sync Errors
 
 Analyze ArgoCD component logs for detailed sync error information:
@@ -604,7 +1079,7 @@ Analyze ArgoCD component logs for detailed sync error information:
 ----
 # Check ArgoCD application controller logs for sync errors
 echo "=== ArgoCD Application Controller Logs ==="
-oc logs -n openshift-gitops deployment/openshift-gitops-application-controller --tail=100 | grep -i -E "(error|failed|sync.*$APP_NAME)"
+oc logs -n openshift-gitops statefulset/openshift-gitops-application-controller --tail=100 | grep -i -E "(error|failed|sync.*$APP_NAME)"
 
 # Check ArgoCD server logs for sync-related errors
 echo -e "\n=== ArgoCD Server Logs ==="  
@@ -617,7 +1092,7 @@ oc logs -n openshift-gitops deployment/openshift-gitops-repo-server --tail=50 | 
 # Monitor logs in real-time during sync operations
 echo -e "\n=== Real-time Log Monitoring ==="
 echo "To monitor logs during sync operations, run:"
-echo "oc logs -f -n openshift-gitops deployment/openshift-gitops-application-controller | grep -i $APP_NAME"
+echo "oc logs -f -n openshift-gitops statefulset/openshift-gitops-application-controller | grep -i $APP_NAME"
 ----
 
 == Lab Summary
@@ -629,6 +1104,7 @@ This focused lab provided essential skills for ArgoCD deployment scenario analys
 * Analyze comprehensive ArgoCD application sync history and deployment patterns
 * Map ArgoCD sync operations to specific Git commits for complete deployment traceability
 * Investigate and resolve sync errors through detailed error message analysis and categorization
+* Troubleshoot applications in degraded state by identifying unhealthy resources and root causes
 
 These skills are essential for maintaining reliable GitOps deployments and ensuring smooth continuous delivery workflows in production environments.
 
