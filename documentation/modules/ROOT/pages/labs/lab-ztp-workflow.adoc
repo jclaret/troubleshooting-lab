@@ -1,19 +1,19 @@
 = OpenShift ZTP Workflow Troubleshooting
 include::../_attributes.adoc[]
 
-== Lab Overview
+== Overview
 
-This lab provides comprehensive troubleshooting techniques for OpenShift Zero Touch Provisioning (ZTP) workflows using Red Hat Advanced Cluster Management (RHACM). You'll learn to diagnose and resolve common issues throughout the ZTP deployment lifecycle, from SiteConfig generation to cluster deployment completion.
+This guide provides comprehensive troubleshooting procedures for OpenShift Zero Touch Provisioning (ZTP) workflows using Red Hat Advanced Cluster Management (RHACM). Use these procedures to diagnose and resolve common issues throughout the ZTP deployment lifecycle, from SiteConfig generation to cluster deployment completion.
 
-=== Learning Objectives
+=== Troubleshooting Objectives
 
-By completing this lab, you will be able to:
+This guide covers systematic approaches to:
 
-* Understand the ZTP workflow from SiteConfig to RHACM resources transformation
+* Troubleshoot the ZTP workflow from SiteConfig to RHACM resources transformation
 * Diagnose BareMetal Host (BMH) inspection issues and state problems
 * Identify and resolve ClusterImageSet and disconnected mirroring issues
 * Analyze AgentClusterInstall errors and deployment failures
-* Effectively use logging tools across ACM hub and managed cluster components
+* Use logging tools effectively across ACM hub and managed cluster components
 * Apply systematic troubleshooting methodology for ZTP deployments
 
 === Reference Documentation
@@ -53,9 +53,9 @@ flowchart TD
     H --> I
 ----
 
-== Exercise 1: Understanding SiteConfig to ACM Resource Transformation
+== Troubleshooting SiteConfig to ACM Resource Transformation
 
-=== Information Gathering: SiteConfig Analysis
+=== SiteConfig Processing Analysis
 
 Understanding how SiteConfig YAML files are processed by the ZTP site generator to create RHACM resources is crucial for troubleshooting. The SiteConfig is not a CRD but a template that gets transformed into actual cluster resources:
 
@@ -63,44 +63,30 @@ Understanding how SiteConfig YAML files are processed by the ZTP site generator 
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Check the ArgoCD application managing ZTP sites
-oc get application -n openshift-gitops
-
-# View ZTP site generator processing status
-oc logs -n openshift-operators deployment/ztp-site-generate --tail=50
-
 # Examine generated cluster resources from SiteConfig processing
-oc get clusterdeployment -A
-oc get agentclusterinstall -A
-oc get infraenv -A
-oc get bmh -A
+oc get clusterdeployment -A -o wide
+oc get agentclusterinstall -A -o wide
+oc get infraenv -A -o wide
+oc get bmh -A -o wide
 
-# Check the ZTP GitOps operator status
-oc get csv -n openshift-operators | grep ztp
-
-# View ArgoCD sync status for site applications
-oc get application -n openshift-gitops -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REPO:.spec.source.repoURL
 ----
 
-=== Investigation Challenge: Resource Generation Issues
+=== Common SiteConfig Transformation Issues
 
-Common SiteConfig transformation problems include:
+When SiteConfig processing fails, investigate these common problem areas:
 
 1. **Template Validation Errors**: Malformed SiteConfig syntax or missing required fields
-2. **Resource Naming Conflicts**: Duplicate cluster names or conflicting resource identifiers
-3. **ArgoCD Sync Failures**: Git repository access issues or webhook problems
-4. **Resource Dependencies**: Missing prerequisites like ClusterImageSet or PullSecret
+2. **Resource Naming Conflicts**: Duplicate cluster names or conflicting resource identifiers  
+3. **Resource Dependencies**: Missing prerequisites like ClusterImageSet or PullSecret
 
-**Best Practice**: Always start troubleshooting by locally validating your SiteConfig with `kustomize build --enable-alpha-plugins` before pushing to Git or investigating cluster-side issues.
+**Troubleshooting Approach**: Always start by locally validating your SiteConfig with `kustomize build --enable-alpha-plugins` before investigating cluster-side issues.
 
 [TIP]
 ====
-💡 **Investigation Commands**:
+💡 **Key Troubleshooting Commands**:
 - **Local validation**: `kustomize build --enable-alpha-plugins /path/to/siteconfig/directory`
-- Check ArgoCD logs: `oc logs -n openshift-gitops deployment/openshift-gitops-application-controller`
-- Review ZTP site generator processing: `oc logs -n openshift-operators deployment/ztp-site-generate -f`
 - Validate generated manifests: `oc get <resource> -o yaml | less`
-- Check Git repository synchronization: `oc describe application <site-app> -n openshift-gitops`
+- Check required dependencies: `oc get clusterimageset`, `oc get secret assisted-deployment-pull-secret -n <namespace>`
 ====
 
 === Local SiteConfig Validation and CR Extraction
@@ -144,26 +130,17 @@ This technique is invaluable for:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Check ZTP GitOps operator logs
-oc logs -n openshift-operators deployment/ztp-site-generate -f
-
-# Examine ArgoCD application health
-oc describe application <site-name> -n openshift-gitops
-
-# Check for ArgoCD application sync errors
-oc get events -n openshift-gitops --field-selector reason=SyncError
-
 # Verify required resources exist
 oc get clusterimageset
 oc get secret assisted-deployment-pull-secret -n <namespace>
 
-# Check Git repository synchronization
-oc get application -n openshift-gitops -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+# Check ZTP-related events
+oc get events -A --field-selector reason=FailedMount,reason=FailedScheduling
 ----
 
-== Exercise 2: BMH State Troubleshooting and Inspection Issues
+== Troubleshooting BareMetal Host (BMH) Issues
 
-=== Information Gathering: BMH Lifecycle States
+=== BMH Lifecycle States and Status Analysis
 
 BareMetal Host resources progress through several states during ZTP deployment:
 
@@ -174,13 +151,13 @@ BareMetal Host resources progress through several states during ZTP deployment:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Check all BMH resources and their states
-oc get bmh -A -o custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,STATE:.status.provisioning.state,ERROR:.status.errorType
+oc get bmh -A -o wide
 
 # Examine BMH detailed status
 oc describe bmh <bmh-name> -n <namespace>
 
 # Check metal3 operator logs
-oc logs -n openshift-machine-api deployment/metal3 -f
+oc logs -n openshift-machine-api deployment/metal3 -c metal3-ironic -f
 
 # Review BMH events for error patterns
 oc get events -n <namespace> --field-selector involvedObject.name=<bmh-name>
@@ -219,20 +196,20 @@ oc logs -n openshift-machine-api -l app=metal3-ironic-inspector -f
 oc get secret <bmh-secret> -n <namespace> -o yaml
 
 # Check agent discovery and registration
-oc get agent -A -o custom-columns=NAME:.metadata.name,CLUSTER:.spec.clusterDeploymentName.name,APPROVED:.spec.approved,STATE:.status.debugInfo.state
+oc get agent -A -o wide
 
 # Review ironic conductor logs for inspection details
 oc logs -n openshift-machine-api -l app=metal3-ironic-conductor -f
 ----
 
-=== Investigation Challenge: BMH Inspection Debugging
+=== BMH Inspection Debugging Procedures
 
-Spend 15-20 minutes investigating BMH inspection issues:
+When troubleshooting BMH inspection issues, systematically check these areas:
 
-1. **What specific error messages appear in BMH status?**
-2. **Are BMC credentials valid and accessible?**
-3. **Is the discovery ISO properly configured and accessible?**
-4. **Are required network ports open for BMC communication?**
+1. **BMH Status Analysis**: Examine specific error messages in BMH status conditions
+2. **BMC Connectivity**: Validate BMC credentials and network accessibility  
+3. **Discovery ISO**: Verify discovery ISO generation and configuration
+4. **Network Requirements**: Ensure required network ports are open for BMC communication
 
 [TIP]
 ====
@@ -243,9 +220,9 @@ Spend 15-20 minutes investigating BMH inspection issues:
 - Metal³ operator component health and logs
 ====
 
-== Exercise 3: Component Error Analysis
+== Troubleshooting Component Errors
 
-=== Problem Definition: ClusterImageSet Issues
+=== ClusterImageSet Issues
 
 ClusterImageSet resources define the OpenShift release images used for cluster deployment:
 
@@ -254,7 +231,7 @@ ClusterImageSet resources define the OpenShift release images used for cluster d
 [source,bash, subs="+macros,+attributes"]
 ----
 # List available ClusterImageSets
-oc get clusterimageset -A
+oc get clusterimageset -A -o wide
 
 # Check ClusterImageSet details for target version
 oc describe clusterimageset <imageset-name>
@@ -275,7 +252,7 @@ In disconnected environments, image mirroring issues are common:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Check ImageDigestMirrorSet configuration
-oc get imagedigestmirrorset -A
+oc get imagedigestmirrorset -A -o wide
 
 # Verify mirror registry authentication
 oc get secret pull-secret -n openshift-config -o yaml | base64 -d | jq '.auths'
@@ -290,9 +267,9 @@ oc debug node/<any-node> -- curl -k https://<mirror-registry>/v2/_catalog
 oc image info <mirrored-image-url>
 ----
 
-=== Investigation Challenge: Image Pull Failures
+=== Diagnosing Image Pull Failures
 
-Common disconnected mirroring issues:
+Common disconnected mirroring issues to investigate:
 
 1. **Authentication Problems**: 
    - Missing or invalid pull secrets for mirror registry
@@ -323,9 +300,9 @@ oc debug node/<any-node> -- podman pull --authfile /var/lib/kubelet/config.json 
 oc debug node/<any-node> -- openssl s_client -connect <registry-host>:443 -verify_return_error
 ----
 
-== Exercise 4: AgentClusterInstall Error Analysis and Resolution
+== Troubleshooting AgentClusterInstall Errors
 
-=== Information Gathering: AgentClusterInstall Status
+=== AgentClusterInstall Status Analysis
 
 AgentClusterInstall orchestrates the cluster installation process:
 
@@ -334,7 +311,7 @@ AgentClusterInstall orchestrates the cluster installation process:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Check AgentClusterInstall status
-oc get agentclusterinstall -A -o custom-columns=NAME:.metadata.name,STATE:.status.debugInfo.state,MESSAGE:.status.conditions[0].message
+oc get agentclusterinstall -A -o wide
 
 # Examine detailed AgentClusterInstall status
 oc describe agentclusterinstall <aci-name> -n <namespace>
@@ -343,7 +320,7 @@ oc describe agentclusterinstall <aci-name> -n <namespace>
 oc get clusterdeployment <cluster-name> -n <namespace> -o yaml
 
 # Review Agent resources for the cluster
-oc get agent -A -l cluster-name=<cluster-name>
+oc get agent -n <cluster-name>
 ----
 
 === Problem Analysis: Installation Failure Scenarios
@@ -370,7 +347,7 @@ Common AgentClusterInstall failure patterns:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Check agent hardware validation
-oc get agent -A -l cluster-name=<cluster-name> -o custom-columns=NAME:.metadata.name,VALIDATION:.status.validationsInfo
+oc get agent -n <cluster-name> -o wide
 
 # Review cluster validation status
 oc describe agentclusterinstall <aci-name> -n <namespace> | grep -A 20 "Validation"
@@ -382,14 +359,14 @@ oc get events -n <namespace> --field-selector involvedObject.name=<aci-name> --s
 oc logs -n assisted-installer job/<cluster-name>-install -f
 ----
 
-=== Investigation Challenge: Installation Debugging
+=== Installation Debugging Procedures
 
-Spend 20-25 minutes investigating installation failures:
+When investigating installation failures, systematically analyze these areas:
 
-1. **What is the exact failure state and error message?**
-2. **Do all agents meet hardware and network requirements?**
-3. **Are network VIPs properly configured and accessible?**
-4. **Is the installation making progress or completely stuck?**
+1. **Failure State Analysis**: Identify the exact failure state and error messages
+2. **Agent Requirements**: Verify all agents meet hardware and network requirements
+3. **Network Configuration**: Ensure network VIPs are properly configured and accessible
+4. **Installation Progress**: Determine if installation is progressing or completely stuck
 
 [TIP]
 ====
@@ -400,9 +377,9 @@ Spend 20-25 minutes investigating installation failures:
 - Monitor installation webhook and API server connectivity
 ====
 
-== Exercise 5: Log Analysis - ACM and ManagedCluster Troubleshooting
+== Log Analysis and Systematic Troubleshooting
 
-=== Information Gathering: ACM Hub Logging
+=== ACM Hub Component Logging
 
 Comprehensive logging strategy for ZTP troubleshooting:
 
@@ -413,16 +390,12 @@ Comprehensive logging strategy for ZTP troubleshooting:
 # Key ACM operator logs
 oc logs -n multicluster-engine deployment/multicluster-engine-operator -f
 oc logs -n open-cluster-management deployment/multicluster-operators-hub-registration -f
-oc logs -n assisted-installer deployment/assisted-service -f
-
-# GitOps and ArgoCD logs
-oc logs -n openshift-gitops deployment/openshift-gitops-application-controller -f
-oc logs -n openshift-operators deployment/ztp-site-generate -f
+oc logs -n multicluster-engine deployment/assisted-service -f
 
 # Metal³ and BMH-related logs
-oc logs -n openshift-machine-api deployment/metal3 -f
-oc logs -n openshift-machine-api -l app=metal3-ironic-conductor -f
-oc logs -n openshift-machine-api -l app=metal3-ironic-inspector -f
+oc logs -n openshift-machine-api deployment/metal3 -c metal3-ironic -f
+oc logs -n openshift-machine-api deployment/metal3-baremetal-operator -f
+
 ----
 
 === ManagedCluster and Spoke Cluster Logging
@@ -449,80 +422,17 @@ oc --kubeconfig=<spoke-kubeconfig> get clusterversion
 oc --kubeconfig=<spoke-kubeconfig> describe clusterversion
 ----
 
-=== Systematic Log Analysis Strategy
 
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Create log collection script for comprehensive analysis
-cat > collect-ztp-logs.sh << 'EOF'
-#!/bin/bash
-CLUSTER_NAME=$1
-NAMESPACE=$2
-LOG_DIR="/tmp/ztp-logs-$(date +%Y%m%d-%H%M%S)"
+== Troubleshooting Summary
 
-mkdir -p $LOG_DIR
+This comprehensive ZTP troubleshooting guide provides essential procedures for managing large-scale OpenShift deployments:
 
-# Collect ACM Hub logs
-oc logs -n multicluster-engine deployment/multicluster-engine-operator > $LOG_DIR/mce-operator.log
-oc logs -n assisted-installer deployment/assisted-service > $LOG_DIR/assisted-service.log
-oc logs -n openshift-gitops deployment/openshift-gitops-application-controller > $LOG_DIR/argocd.log
-
-# Collect cluster-specific resources
-oc get agentclusterinstall $CLUSTER_NAME -n $NAMESPACE -o yaml > $LOG_DIR/agentclusterinstall.yaml
-oc describe agentclusterinstall $CLUSTER_NAME -n $NAMESPACE > $LOG_DIR/agentclusterinstall-describe.txt
-oc get bmh -n $NAMESPACE -o yaml > $LOG_DIR/bmh-resources.yaml
-oc get agent -A -l cluster-name=$CLUSTER_NAME -o yaml > $LOG_DIR/agents.yaml
-
-# Collect events
-oc get events -n $NAMESPACE --sort-by='.lastTimestamp' > $LOG_DIR/namespace-events.txt
-
-echo "Logs collected in: $LOG_DIR"
-EOF
-
-chmod +x collect-ztp-logs.sh
-
-# Usage example
-./collect-ztp-logs.sh <cluster-name> <namespace>
-----
-
-=== Investigation Challenge: End-to-End Log Correlation
-
-Practice correlating logs across multiple components:
-
-1. **Timeline Analysis**: Match timestamps across different component logs
-2. **Error Pattern Recognition**: Identify cascading failures from root causes
-3. **Component Interaction**: Understand how ArgoCD, ACM, and Metal³ interact
-4. **Resource State Correlation**: Match log entries with resource status changes
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Advanced log analysis with timestamps
-oc logs -n assisted-installer deployment/assisted-service --timestamps=true | grep -E "(ERROR|WARN|FATAL)"
-
-# Pattern matching across multiple logs
-for pod in $(oc get pods -n openshift-machine-api -l app=metal3 -o name); do
-  echo "=== $pod ==="
-  oc logs -n openshift-machine-api $pod --timestamps=true | tail -20
-done
-
-# Event correlation with resource status
-oc get events -A --sort-by='.lastTimestamp' -o custom-columns=TIME:.lastTimestamp,NAMESPACE:.namespace,REASON:.reason,OBJECT:.involvedObject.name,MESSAGE:.message | grep -i <cluster-name>
-----
-
-== Lab Summary
-
-This comprehensive ZTP troubleshooting lab covered essential skills for managing large-scale OpenShift deployments:
-
-* **Resource Flow Understanding**: Mapped SiteConfig transformation to RHACM resources
-* **State-based Debugging**: Analyzed BMH lifecycle states and common inspection issues
-* **Component Integration**: Diagnosed ClusterImageSet and disconnected registry problems
-* **Installation Monitoring**: Tracked AgentClusterInstall progress and failure analysis
-* **Systematic Logging**: Implemented comprehensive log collection and correlation strategies
-* **End-to-End Visibility**: Achieved full troubleshooting coverage from hub to spoke clusters
+* **Resource Flow Troubleshooting**: Procedures for diagnosing SiteConfig transformation to RHACM resources
+* **State-based Debugging**: Methods for analyzing BMH lifecycle states and common inspection issues
+* **Component Integration**: Techniques for diagnosing ClusterImageSet and disconnected registry problems
+* **Installation Monitoring**: Approaches for tracking AgentClusterInstall progress and failure analysis
+* **Systematic Logging**: Comprehensive log collection and correlation strategies
+* **End-to-End Visibility**: Complete troubleshooting coverage from hub to spoke clusters
 
 == Additional Resources
 
