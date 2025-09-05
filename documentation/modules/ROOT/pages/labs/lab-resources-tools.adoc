@@ -37,7 +37,7 @@ oc version
 oc get clusterversion
 
 # Examine cluster operator status (critical for overall health)
-oc get co
+oc get clusteroperators
 
 # Validate node readiness and detailed information
 oc get nodes -o wide
@@ -121,6 +121,32 @@ ll
 total 12
 drwxr-xr-x. 3 demo-user users 4096 Aug  5 10:46 must-gather-2025-08-05
 drwxr-xr-x. 4 demo-user users 4096 Aug  5 11:04 must-gather.local.8832762126482069764
+
+# ODF/Ceph data
+ll must-gather.local.8832762126482069764/registry-redhat-io-odf4-odf-must-gather*/ceph
+
+total 392
+-rw-r--r--. 1 demo-user users 353301 Sep  5 10:16 aggregated-discovery-apis.yaml
+-rw-r--r--. 1 demo-user users   9644 Sep  5 10:16 aggregated-discovery-api.yaml
+-rw-r--r--. 1 demo-user users   3336 Sep  5 10:16 event-filter.html
+drwxr-xr-x. 2 demo-user users   4096 Sep  5 10:20 logs
+drwxr-xr-x. 2 demo-user users   8192 Sep  5 10:20 must_gather_commands
+drwxr-xr-x. 2 demo-user users   4096 Sep  5 10:20 must_gather_commands_json_output
+drwxr-xr-x. 3 demo-user users     31 Sep  5 10:20 namespaces
+-rw-r--r--. 1 demo-user users    989 Sep  5 10:16 timestamp
+
+ll must-gather.local.8832762126482069764/registry-redhat-io-odf4-odf-must-gather*/ceph/must_gather_commands
+total 3140
+-rw-r--r--. 1 demo-user users    2911 Sep  5 10:16  ceph_auth_list
+-rw-r--r--. 1 demo-user users     333 Sep  5 10:16  ceph_balancer_status
+-rw-r--r--. 1 demo-user users    2278 Sep  5 10:16  ceph_config_dump
+-rw-r--r--. 1 demo-user users    3646 Sep  5 10:16  ceph_config-key_ls
+-rw-r--r--. 1 demo-user users      19 Sep  5 10:16  ceph_crash_stat
+-rw-r--r--. 1 demo-user users     910 Sep  5 10:16  ceph_device_ls
+-rw-r--r--. 1 demo-user users    1150 Sep  5 10:16  ceph_df_detail
+-rw-r--r--. 1 demo-user users    1742 Sep  5 10:16  ceph_fs_dump
+-rw-r--r--. 1 demo-user users     155 Sep  5 10:16  ceph_fs_ls
+...
 ----
 
 [NOTE]
@@ -318,10 +344,10 @@ tar -xf sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz.tar.xz
 cd sosreport-ip-10-0-39-122-SupportCase123456-2025-08-05-fenkgpz
 
 # Full system analysis with all modules
-xsos -a
+xsos -a .
 
 # System overview with memory and CPU details
-xsos -omc
+xsos -omc .
 
 # Check CPU, PCI devices, and network interfaces
 xsos -cln .
@@ -333,13 +359,13 @@ xsos -e .
 xsos -d .
 
 # Review process information
-xsos --ps
+xsos --ps .
 
 # Kernel crash dump configuration
-xsos --kdump
+xsos --kdump .
 
 # System kernel parameters
-xsos --sysctl
+xsos --sysctl .
 ----
 
 [NOTE]

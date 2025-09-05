@@ -51,7 +51,7 @@ oc scale $MACHINESET -n openshift-machine-api --replicas=5
 oc get machines.machine.openshift.io -n openshift-machine-api
 
 # Wait until the new node is Ready
-oc get nodes
+watch oc get nodes
 
 # Label a worker node for the new MCP
 NODE=$(oc get nodes -l node-role.kubernetes.io/worker --sort-by=.metadata.creationTimestamp | tail -1 | awk '{print $1}')
@@ -61,7 +61,7 @@ echo "Selected node: $NODE"
 oc label node "$NODE" node-role.kubernetes.io/workshop="" --overwrite
 
 # Verify node labeling
-oc get node "$NODE" --show-labels | grep workshop
+oc get node -l node-role.kubernetes.io/workshop
 
 # Create the MCP
 cd /home/demo-user/troubleshooting-lab/lab-materials/01-telco-rds
@@ -171,8 +171,9 @@ For this lab exercise, we'll use a simplified metadata file focusing on essentia
 ----
 # Copy the simplified metadata file for lab exercise
 cp metadata_workshop.yaml out/reference/metadata_workshop.yaml
-cp 06-kdump-workshop.yaml out/source-crs/extra-manifest 
-cp 06-kdump-workshop.yaml out/reference/required/machine-config/kdump/06-kdump-worker.yaml
+cp 06-kdump-workshop.yaml out/source-crs/extra-manifest
+cp 06-kdump-workshop.yaml out/extra-manifest/
+cp 06-kdump-workshop.yaml out/reference/required/machine-config/kdump/
 
 # Review the metadata content
 cat out/reference/metadata_workshop.yaml
@@ -209,7 +210,7 @@ CRs in reference missing from the cluster: 1
 required-machine-config:
   machine-config:
     Missing CRs:
-    - required/machine-config/kdump/06-kdump-worker.yaml
+    - required/machine-config/kdump/06-kdump-workshop.yaml
       Description:
         https://docs.openshift.com/container-platform/4.18/scalability_and_performance/telco_ref_design_specs/ran/telco-ran-ref-du-components.html#telco-ran-machine-configuration_ran-ref-design-components
 No CRs are unmatched to reference CRs

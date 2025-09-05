@@ -6,4 +6,4 @@ parts:
     components:
       - name: machine-config
         allOf:
-          - path: required/machine-config/kdump/06-kdump-worker.yaml
+          - path: required/machine-config/kdump/06-kdump-workshop.yaml
