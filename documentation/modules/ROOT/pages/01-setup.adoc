@@ -12,29 +12,10 @@ This OpenShift 4.18 lab environment comes with the following pre-installed compo
 |===
 |Component |Version |Purpose
 
-|Advanced Cluster Management for Kubernetes
-|2.13.3
-|Multi-cluster lifecycle management
-
-|Advanced Cluster Security for Kubernetes
-|4.7.5
-|Container and Kubernetes security
-
 |OpenShift Data Foundation
 |4.18.7-rhodf
 |Software-defined storage solution
 
-|Red Hat OpenShift GitOps
-|1.15.3
-|GitOps-based application delivery
-
-|Red Hat Quay
-|3.13.7
-|Container registry and image security
-
-|Multicluster Engine for Kubernetes
-|2.8.2
-|Multi-cluster infrastructure management
 |===
 
 === Environment Details
@@ -121,6 +102,35 @@ ip-10-0-50-174.ec2.internal   Ready    worker                 25h   v1.31.10
 ip-10-0-51-124.ec2.internal   Ready    worker                 25h   v1.31.10
 ip-10-0-58-191.ec2.internal   Ready    worker                 25h   v1.31.10
 ----
+
+=== Accessing the OpenShift Console
+
+Once you're connected to the cluster, you can access the OpenShift web console:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Get the OpenShift console URL
+oc whoami --show-console
+
+# Alternative method to get console URL
+oc get route console -n openshift-console -o jsonpath='{.spec.host}'
+----
+
+**Console Access Details:**
+- **URL**: Use the output from the command above
+- **Username**: `kubeadmin`
+- **Password**: Use the password provided in your lab credentials
+
+**Console Features Available:**
+- **Cluster Overview**: Monitor cluster health and resource usage
+- **Developer Perspective**: Access to applications, deployments, and services
+- **Administrator Perspective**: Full cluster management capabilities
+- **Monitoring**: Built-in Prometheus and Grafana dashboards
+- **Storage**: ODF console for storage management and troubleshooting
+
+**Note**: The console provides a graphical interface for many operations that can also be performed via the `oc` CLI, making it useful for both learning and troubleshooting scenarios.
 
 === Cluster Architecture Overview
 
