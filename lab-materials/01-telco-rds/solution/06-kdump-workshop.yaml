@@ -4,8 +4,8 @@ apiVersion: machineconfiguration.openshift.io/v1
 kind: MachineConfig
 metadata:
   labels:
-    machineconfiguration.openshift.io/role: worker
-  name: 06-kdump-enable-worker
+    machineconfiguration.openshift.io/role: workshop
+  name: 06-kdump-enable-workshop
 spec:
   config:
     ignition:
