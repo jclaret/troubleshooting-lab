@@ -14,7 +14,7 @@ spec:
       [video]
       enabled=false
       [sysctl]
-      net.netfilter.nf_conntrack_max=48-15162342
+      net.netfilter.nf_conntrack_max=83-8388608
 
   recommend:
   - machineConfigLabels:

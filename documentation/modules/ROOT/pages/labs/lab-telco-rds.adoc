@@ -162,11 +162,10 @@ podman run --log-driver=none --rm \
 
 This creates the out directory contains the following subdirectories:
 
-- out/extra-manifest contains the source CR files that SiteConfig uses to generate extra manifest configMap.
-- out/source-crs contains the source CR files that PolicyGenTemplate uses to generate the Red Hat Advanced Cluster Management policies.
-- out/argocd/deployment contains patches and YAML files to apply on the hub cluster for use in the next step of this procedure.
-- out/argocd/example contains the examples for SiteConfig and PolicyGenTemplate files that represent the recommended configuration.
-
+- **out/extra-manifest** contains the source CR files that SiteConfig uses to generate extra manifest configMap.
+- **out/source-crs** contains the source CR files that PolicyGenTemplate uses to generate the Red Hat Advanced Cluster Management policies.
+- **out/argocd/deployment** contains patches and YAML files to apply on the hub cluster for use in the next step of this procedure.
+- **out/argocd/example** contains the examples for SiteConfig and PolicyGenTemplate files that represent the recommended configuration.
 
 === Creating Minimal Validation Scope
 

@@ -78,6 +78,16 @@ When issues are identified, leverage official Red Hat resources to guide your tr
 * *Cluster Monitoring*: Use built-in Prometheus/Alertmanager for operator status and alerts on OpenShift Console > Observe > Dashboard
 * *Support Case Preparation*: Gather diagnostic artifacts if Red Hat Support engagement is needed in https://access.redhat.com/support/cases/[Customer Support]
 
+**Troubleshooting Resources:**
+
+Pay special attention to the comprehensive troubleshooting guides for general and component-specific issues:
+
+* https://access.redhat.com/articles/4217411[Troubleshooting OpenShift] - General OpenShift troubleshooting
+* https://access.redhat.com/articles/4217411[Troubleshooting OpenShift Components] - Component-specific troubleshooting guides
+* https://access.redhat.com/articles/3787381[OpenShift 4.x Troubleshooting Quick Reference] - Quick reference for common issues
+* https://access.redhat.com/articles/3780981[Debugging OpenShift 4.x] - Advanced debugging techniques and tools
+
+
 == Exercise 2: Creating Comprehensive Must-Gather Collections
 
 === Diagnostic Steps: Understanding Must-Gather Purpose

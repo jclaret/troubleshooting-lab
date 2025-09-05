@@ -24,6 +24,7 @@ By completing this lab, you will be able to:
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/scalability_and_performance/cnf-tuning-low-latency-nodes-with-perf-profile[CNF Tuning Low Latency Nodes with Performance Profile]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/scalability_and_performance/cnf-tuning-low-latency-nodes-with-perf-profile#cnf-telco-ran-reference-design-performance-profile-template_cnf-low-latency-perf-profile[Telco RAN DU Reference Design Performance Profile]
 * link:https://access.redhat.com/solutions/5532341[Performance Addons Operator Advanced Configuration]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/cnf-tuning-low-latency-nodes-with-perf-profile[Creating a performance profile]
 
 == Understanding Performance Profiles
 
@@ -45,21 +46,36 @@ After applying a Performance Profile, verify its status with the following comma
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
+# Get status information about the ClusterOperator/node-tuning object
+oc get co/node-tuning -n openshift-cluster-node-tuning-operator
+
 # Check Performance Profile status
 oc get performanceprofile
 oc get performanceprofile -o yaml
 oc get performanceprofiles.performance.openshift.io -o jsonpath='{.items[*].status.conditions[?(@.type=="Degraded")]}' | jq 'select(.status=="True")'
 
-# Verify generated Tuned profiles
-oc get profiles.tuned.openshift.io -A
-oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
+# Verify generated TuneD profiles that are applied to your cluster node
+# APPLIED: True if the TuneD daemon applied the desired profile. (True/False/Unknown).
+# DEGRADED: True if any errors were reported during application of the TuneD profile (True/False/Unknown).
+oc get profile.tuned.openshift.io -n openshift-cluster-node-tuning-operator
 
-# Check Tuned CRDs and profiles
+# Check Tuned CRDs
 oc get tuned -n openshift-cluster-node-tuning-operator
 
 # Check Node Tuning Operator pods
 oc get pod -n openshift-cluster-node-tuning-operator
 oc get pod -n openshift-cluster-node-tuning-operator -o wide
+
+# Show each MCP's nodeSelector (to see which labels they match)
+oc get mcp -o jsonpath='{range .items[*]}{.metadata.name}{" => "}{.spec.nodeSelector}{"\n"}{end}'
+----
+
+Expected output:
+----
+master => {"matchLabels":{"node-role.kubernetes.io/master":""}}
+worker => {"matchLabels":{"node-role.kubernetes.io/worker":""}}
+workshop => {"matchLabels":{"node-role.kubernetes.io/workshop":""}}
+
 
 # Get Node Tuning Operator logs
 NTO_POD=$(oc get pod -n openshift-cluster-node-tuning-operator -l name=cluster-node-tuning-operator -o jsonpath='{.items[0].metadata.name}')
@@ -88,15 +104,22 @@ oc debug node/<node-name> -- chroot /host cat /proc/meminfo | grep -i huge
 oc debug node/<node-name> -- chroot /host cat /sys/kernel/mm/transparent_hugepage/enabled
 oc debug node/<node-name> -- chroot /host sysctl -n net.netfilter.nf_conntrack_max
 
-# 
-oc explain PerformanceProfile.spec.nodeSelector
+# Explore PerformanceProfile specification options
+oc explain PerformanceProfile.spec
 ----
 
 == Exercise 1: Troubleshooting Huge Pages Application
 
 === Scenario Setup
 
-You need to deploy an application that requires huge pages for optimal performance. The application has been configured to request huge pages resources, but there seems to be an issue with the deployment.
+You’ll deploy an application into the hugepages-web namespace. This app is configured to request HugePages because it performs better with them.
+
+Alongside the app, the manifest also creates:
+
+* the namespace hugepages-web,
+* a Deployment that requests HugePages, and
+* a Service and Route (so you can reach the app)
+* a PerformanceProfile that tells the cluster which nodes must reserve HugePages at the kernel level.
 
 Navigate to the lab scenario:
 
@@ -121,8 +144,9 @@ oc apply -k .
 
 # Check application status
 oc get pods -n hugepages-web
+oc project hugepages-web
 
-# Check "workshop MCP and node restart"
+# Check workshop MCP and node restart
 watch "oc get mcp workshop; oc get nodes"
 ----
 
@@ -185,6 +209,41 @@ and
       type: Degraded
 
 The node is expected to apply the Performance Profile configuration and restart the node belonging to the workshop MCP.
+
+**Troubleshooting Steps:**
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+oc get performanceprofile lab1-hugepages -o jsonpath='{.status.conditions}{"\n"}'
+oc get performanceprofile lab1-hugepages -o jsonpath='{.spec.nodeSelector}{"\n"}'
+
+oc get mcp -o jsonpath='{range .items[*]}{.metadata.name}{" => "}{.spec.nodeSelector}{"\n"}{end}'
+----
+
+Expected output:
+----
+master => {"matchLabels":{"node-role.kubernetes.io/master":""}}
+worker => {"matchLabels":{"node-role.kubernetes.io/worker":""}}
+workshop => {"matchLabels":{"node-role.kubernetes.io/workshop":""}}
+----
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+oc get performanceprofile lab1-hugepages -o jsonpath='{.status.conditions[?(@.type=="Degraded")].message}{"\n"}'
+oc get nodes -l 'node.role.kubernetes.io/performance' --no-headers
+oc get nodes -l 'node-role.kubernetes.io/workshop' --no-headers
+
+watch "oc get mcp workshop; oc get nodes; oc get pod -n hugepages-web"
+----
+
+Expected error message:
+----
+failed to find MCP with the node selector that matches labels "node.role.kubernetes.io/performance=fix-me"
+----
 ====
 
 === Verification
@@ -202,15 +261,24 @@ oc rollout status deployment/hugepages-web -n hugepages-web
 # Access the application to verify huge pages configuration
 oc get route hugepages-web -n hugepages-web -o jsonpath='{.spec.host}{"\n"}'
 # curl http://<route-url> or open in browser
+----
+
+**Application URL:** `http://hugepages-web-hugepages-web.apps.cluster-gxw6q.gxw6q.sandbox1933.opentlc.com`
 
 image::hugepages-app.png[]
-----
 
 == Exercise 2: Troubleshooting Kernel Parameter Tuning
 
-=== Scenario Setup: Application Requiring Custom Kernel Parameters
+=== Scenario Setup
 
-You need to deploy an application that requires custom kernel parameters for optimal performance. The application has been configured with a Tuned profile, but there seems to be an issue with the configuration.
+You'll deploy an application into the *conntrack-app* namespace. This application requires specific kernel parameters to function optimally, particularly for network connection tracking.
+
+Alongside the app, the manifest also creates:
+
+* the namespace *conntrack-app*,
+* a Deployment that runs a network-intensive application,
+* a Service and Route (so you can reach the app), and
+* a Tuned profile that should configure kernel parameters for optimal network performance.
 
 Navigate to the second lab scenario:
 
@@ -236,6 +304,7 @@ oc apply -k .
 # Check application status
 oc get pods -n conntrack-app
 oc describe pod -n conntrack-app
+oc project conntrack-app
 ----
 
 === Investigation Challenge
@@ -282,7 +351,7 @@ oc delete -f tuned.yaml
 oc apply -k solution/
 
 # Monitor Tuned CRD and profile application
-oc get tuned -n openshift-cluster-node-tuning-operator
+oc get tuned -n openshift-cluster-node-tuning-operator configuration-conntrack
 oc get profiles.tuned.openshift.io -n openshift-cluster-node-tuning-operator
 
 # Check Node Tuning Operator logs for any errors
@@ -325,6 +394,10 @@ oc logs deployment/conntrack-app -n conntrack-app
 # Test application functionality
 oc get route conntrack-app -n conntrack-app -o jsonpath='{.spec.host}{"\n"}'
 # curl http://<route-url> should return success
+
+curl http://conntrack-app-conntrack-app.apps.cluster-gxw6q.gxw6q.sandbox1933.opentlc.com
+{"message":"nf_conntrack_max=8388608 OK","status":"ok"}
+
 ----
 
 == Lab Summary
@@ -339,6 +412,7 @@ This lab demonstrated critical troubleshooting skills for Performance Profile co
 
 == Additional Resources
 
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/using-node-tuning-operator[Using the Node Tuning Operator]
 * link:https://github.com/openshift/cluster-node-tuning-operator/blob/main/cmd/performance-profile-creator/README.md[Performance Profile Creator Documentation]
 * link:https://github.com/openshift/cluster-node-tuning-operator/blob/main/examples/performanceprofile/samples/performance_v2_performanceprofile.yaml[Performance Profile Examples]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed[HugePages Documentation]
