@@ -17,7 +17,7 @@ By completing this lab, you will be able to:
 
 === Reference Documentation
 
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/telco-ran-du-ref-design-specs#telco-ref-design-overview_telco-ran-du[Telco RAN DU Reference Design Specifications]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/telco-ran-du-ref-design-specs#telco-ref-design-overview_telco-ran-du[Telco RAN DU reference design specification]
 
 == Understanding Telco RAN Reference Design
 
@@ -36,28 +36,30 @@ Key RDS components include:
 * *Performance Profiles*: CPU isolation, NUMA topology awareness, and real-time scheduling
 * *Network Configuration*: SR-IOV, DPDK, and high-performance networking
 
-=== Setup Machine Config Pool
+=== Setup a New Node and Machine Config Pool
 
-For this exercise and the following ones, we'll create a new node and MachineConfig Pool called "workshop" to avoid waiting too long during the changes we'll make to the nodes.
+For this and subsequent exercises, we need to deploy a new node and create a dedicated Machine Config Pool (MCP) called "workshop". 
+
+Follow these instructions to create the new node and MCP:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Scale up 1 nodes (5min)
+# Scale up +1 nodes (5min aprox)
 MACHINESET=$(oc get machinesets.machine.openshift.io -n openshift-machine-api -o name | head -1)
 echo "Using machineset: $MACHINESET"
 oc scale $MACHINESET -n openshift-machine-api --replicas=5
+
+# Monitoring provisioning status
 oc get machines.machine.openshift.io -n openshift-machine-api
 
-# Wait until the new node is Ready
+# Wait until the last provisioned node is Ready
 watch oc get nodes
 
-# Label a worker node for the new MCP
+# Label a worker node for the new MCP (select the node with the lowest AGE - the last provisioned)
 NODE=$(oc get nodes -l node-role.kubernetes.io/worker --sort-by=.metadata.creationTimestamp | tail -1 | awk '{print $1}')
 echo "Selected node: $NODE"
-
-# Add label
 oc label node "$NODE" node-role.kubernetes.io/workshop="" --overwrite
 
 # Verify node labeling
@@ -68,7 +70,6 @@ cd /home/demo-user/troubleshooting-lab/lab-materials/01-telco-rds
 oc apply -f machine_config_pool.yaml
 
 # Verify new MCP is created and updated
-oc get mcp
 watch "oc get mcp; oc get nodes"
 ----
 
@@ -159,11 +160,17 @@ podman run --log-driver=none --rm \
   extract /home/ztp --tar | tar x -C ./out
 ----
 
-This creates a directory structure `out/reference/...` containing the complete telco RAN reference configuration.
+This creates the out directory contains the following subdirectories:
+
+- out/extra-manifest contains the source CR files that SiteConfig uses to generate extra manifest configMap.
+- out/source-crs contains the source CR files that PolicyGenTemplate uses to generate the Red Hat Advanced Cluster Management policies.
+- out/argocd/deployment contains patches and YAML files to apply on the hub cluster for use in the next step of this procedure.
+- out/argocd/example contains the examples for SiteConfig and PolicyGenTemplate files that represent the recommended configuration.
+
 
 === Creating Minimal Validation Scope
 
-For this lab exercise, we'll use a simplified metadata file focusing on essential configuration:
+For this lab exercise, we'll use a simplified metadata file focusing on essential configuration. This is a minimal, simplified configuration designed specifically for educational purposes to demonstrate how the Telco RDS (Reference Design Specification) validation process works. This configuration is not intended for production use and should not be considered a complete or production-ready setup.
 
 [.lines_space]
 [.console-input]
@@ -218,12 +225,14 @@ Metadata Hash: dfdcc0a98940b59b6767a0c016e3a858a512df172cd37cbb11d7cf1ed9f83d40
 No patched CRs
 ----
 
+In this case, it shows that there's one missing MachineConfig that needs to be applied to make the cluster compliant with the telco RDS requirements.
+
 == Exercise 4: Resolving Configuration Drift
 
 **YOUR MISSION**: The cluster-compare output above shows a **configuration drift problem**. Your task is to:
 
 1. **Understand the problem** - What exactly is missing and why is it critical?
-2. **Find the solution** - Locate the missing configuration file and apply it
+2. **Find the solution** - Locate the missing configuration file in out/source-crs/extra-manifest directory and apply it
 3. **Verify the fix** - Confirm the cluster is now compliant
 4. **Node restart** - It is expected a node restart
 
@@ -244,10 +253,7 @@ If you've completed your investigation or need guidance, here's the solution:
 oc apply -f ./out/source-crs/extra-manifest/06-kdump-workshop.yaml
 
 # Watch/Wait the MCP rollout
-oc get mcp workshop
-
-# It will restart the node
-oc get nodes
+watch "oc get mcp workshop; oc get nodes"
 
 # Verify compliance (run after rollout completes)
 oc cluster-compare -r out/reference/metadata_workshop.yaml
@@ -269,11 +275,13 @@ Expected successful output:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
+oc cluster-compare -r out/reference/metadata_workshop.yaml
+
 Summary
 CRs with diffs: 0/1
 No validation issues with the cluster
 No CRs are unmatched to reference CRs
-Metadata Hash: 325a28a44f8a057b472c54d479989514ad17251be45d4a628682bc770576a57e
+Metadata Hash: 0f579e9dcdc519dcebfa740ba0fc0fa0dca6769890c7cfde34077c067d6e7794
 No patched CRs
 ----
 
@@ -288,4 +296,5 @@ This lab demonstrated the critical importance of maintaining telco RAN RDS compl
 
 == Additional Resources
 
-* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/telco-ran-du-ref-design-specs[Complete Telco RAN DU Reference Design Specification]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/edge_computing/ztp-preparing-the-hub-cluster#ztp-telco-ran-software-versions_ztp-preparing-the-hub-cluster[Telco RAN DU 4.19 validated software components]
+* link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/edge_computing/ztp-preparing-the-hub-cluster#ztp-preparing-the-ztp-git-repository_ztp-preparing-the-hub-cluster[Preparing the GitOps ZTP site configuration repository]
