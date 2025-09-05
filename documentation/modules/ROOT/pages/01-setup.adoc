@@ -119,11 +119,13 @@ oc get route console -n openshift-console -o jsonpath='{.spec.host}'
 ----
 
 **Console Access Details:**
+
 - **URL**: Use the output from the command above
 - **Username**: `kubeadmin`
 - **Password**: Use the password provided in your lab credentials
 
 **Console Features Available:**
+
 - **Cluster Overview**: Monitor cluster health and resource usage
 - **Developer Perspective**: Access to applications, deployments, and services
 - **Administrator Perspective**: Full cluster management capabilities
