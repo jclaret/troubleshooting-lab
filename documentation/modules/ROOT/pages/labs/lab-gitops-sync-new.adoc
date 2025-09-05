@@ -282,7 +282,7 @@ Applications can show as "Degraded" even when synced successfully. This indicate
 [source,bash, subs="+macros,+attributes"]
 ----
 # Identify applications in degraded state
-oc get applications.argoproj.io -A | grep Degraded
+oc get applications.argoproj.io -A -o custom-columns="NAME:.metadata.name,NAMESPACE:.metadata.namespace,SYNC:.status.sync.status,HEALTH:.status.health.status" | grep Degraded
 
 # Check unhealthy resources for specific application
 APP_NAME="<application-name>"
@@ -321,6 +321,11 @@ oc get policies -n $POLICY_NAMESPACE -o custom-columns=NAME:.metadata.name,COMPL
 oc get managedclusters -o custom-columns=NAME:.metadata.name,AVAILABLE:.status.conditions[0].status
 ----
 
+[TIP]
+====
+💡 For comprehensive degraded application analysis including OCM policy troubleshooting with root cause analysis, use the scripts provided in link:gitops-scripts.html[GitOps Scripts Documentation].
+====
+
 == ArgoCD Log Analysis
 
 For deeper troubleshooting, examine ArgoCD component logs:
@@ -342,89 +347,26 @@ oc logs -n openshift-gitops deployment/openshift-gitops-repo-server --tail=50 | 
 oc logs -f -n openshift-gitops statefulset/openshift-gitops-application-controller | grep -i $APP_NAME
 ----
 
+== Automated Troubleshooting Scripts
 
+For comprehensive analysis and automated troubleshooting, refer to the link:gitops-scripts.html[GitOps Scripts Documentation] which provides:
 
+* **git_argocd_correlation.sh** - Detailed Git commit to deployment correlation
+* **analyze_sync_errors.sh** - Comprehensive sync error analysis with categorization
+* **analyze_degraded_app.sh** - Complete degraded application analysis including OCM policy troubleshooting
 
+== Lab Summary
 
-== Practical Must-Gather Analysis Exercises
+This focused lab provided essential skills for ArgoCD deployment scenario analysis and sync troubleshooting. You've learned to:
 
-The following exercises require analysis of actual must-gather files to apply the troubleshooting techniques learned in this lab. These exercises simulate real-world scenarios you might encounter when troubleshooting GitOps deployments.
+* Check and track the latest commits that ArgoCD has processed from Git repositories
+* Determine whether application syncs are performed manually or automatically through policy analysis
+* Analyze comprehensive ArgoCD application sync history and deployment patterns
+* Map ArgoCD sync operations to specific Git commits for complete deployment traceability
+* Investigate and resolve sync errors through detailed error message analysis and categorization
+* Troubleshoot applications in degraded state by identifying unhealthy resources and root causes
 
-=== Exercise A: Site-Configs Application Sync Analysis
-
-**Scenario:** A ZTP site-configs application shows as "OutOfSync" status.
-
-**Your Task:**
-Using the provided `must-gather-file1`, analyze the site-configs application and determine:
-
-1. **Root Cause Analysis:**
-   - What specific error condition is causing the out-of-sync status?
-   - Which resource type is reported as missing or failed?
-   
-2. **Resource Investigation:**
-   - What is the name and namespace of the missing resource?
-   - What resource kind/type should have been created but is missing?
-   
-3. **Sync History Analysis:**
-   - When was the last successful sync attempt?
-   - What was the last commit revision that was successfully processed?
-
-**Approach Hints:**
-- Use `oc get applications.argoproj.io` commands from the must-gather data
-- Examine `.status.conditions[]` for error messages
-- Check `.status.resources[]` for resource status information
-- Review `.status.operationState` for sync operation details
-
-=== Exercise B: Site-Policies Application Compliance Analysis
-
-**Scenario:** A site-policies application managing OCM governance policies shows as "Degraded" with policy compliance issues.
-
-**Your Task:**
-Using the provided `must-gather-file1`, analyze the site-policies application and determine:
-
-1. **Policy Compliance Status:**
-   - Which specific policies are showing as "NonCompliant"?
-   - How many managed clusters are affected by the non-compliance?
-   
-2. **Root Cause Analysis:**
-   - What are the specific violation messages for each non-compliant policy?
-   - Are the violations related to missing CRDs, configuration mismatches, or resource conflicts?
-   
-3. **Managed Cluster Impact:**
-   - Which managed clusters are reporting the policy violations?
-   - Are there any managed cluster connectivity issues affecting policy enforcement?
-
-**Approach Hints:**
-- Look for Policy and PolicySet resources in the application
-- Examine policy `.status.status[]` for cluster-specific compliance details
-- Check replicated policies in managed cluster namespaces for detailed violation messages
-- Review ManagedCluster resources for connectivity status
-
-=== Exercise C: ArgoCD Sync History and Git Commit Correlation
-
-**Scenario:** You need to trace the deployment history and correlate ArgoCD sync operations with specific Git commits.
-
-**Your Task:**
-Using the provided `must-gather-file2`, extract and analyze sync history to determine:
-
-1. **Recent Sync Operations:**
-   - What are the timestamps of the latest three ArgoCD sync operations?
-   - What were the corresponding Git commit SHA hashes for each sync?
-   
-2. **Commit Analysis:**
-   - Which application(s) were involved in these sync operations?
-   - Were these automatic or manual sync operations?
-   
-3. **Deployment Tracking:**
-   - Can you identify any failed or incomplete sync operations among the recent syncs?
-   - What was the time interval between each of the three sync operations?
-
-**Approach Hints:**
-- Use `.status.history[]` from application objects to extract sync history
-- Look for `.revision`, `.deployedAt`, and `.id` fields in sync history
-- Check `.status.operationState` for sync operation details
-- Examine multiple applications if necessary to get complete picture
-
+These skills are essential for maintaining reliable GitOps deployments and ensuring smooth continuous delivery workflows in production environments.
 
 == Additional Resources
 
@@ -434,4 +376,3 @@ Using the provided `must-gather-file2`, extract and analyze sync history to dete
 * link:https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/[ArgoCD Sync Options and Strategies]
 * link:https://argo-cd.readthedocs.io/en/stable/operator-manual/health/[ArgoCD Health Assessment]
 * link:https://access.redhat.com/documentation/en-us/red_hat_openshift_gitops/[Red Hat OpenShift GitOps Troubleshooting Guide]
-* link:https://docs.openshift.com/container-platform/4.15/support/gathering-cluster-data.html[OpenShift Must-Gather Documentation]
