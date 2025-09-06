@@ -68,14 +68,11 @@ oc get pod -n openshift-cluster-node-tuning-operator -o wide
 
 # Show each MCP's nodeSelector (to see which labels they match)
 oc get mcp -o jsonpath='{range .items[*]}{.metadata.name}{" => "}{.spec.nodeSelector}{"\n"}{end}'
-----
 
-Expected output:
-----
-master => {"matchLabels":{"node-role.kubernetes.io/master":""}}
-worker => {"matchLabels":{"node-role.kubernetes.io/worker":""}}
-workshop => {"matchLabels":{"node-role.kubernetes.io/workshop":""}}
-
+# Expected output:
+# master => {"matchLabels":{"node-role.kubernetes.io/master":""}}
+# worker => {"matchLabels":{"node-role.kubernetes.io/worker":""}}
+# workshop => {"matchLabels":{"node-role.kubernetes.io/workshop":""}}
 
 # Get Node Tuning Operator logs
 NTO_POD=$(oc get pod -n openshift-cluster-node-tuning-operator -l name=cluster-node-tuning-operator -o jsonpath='{.items[0].metadata.name}')
@@ -220,13 +217,11 @@ oc get performanceprofile lab1-hugepages -o jsonpath='{.status.conditions}{"\n"}
 oc get performanceprofile lab1-hugepages -o jsonpath='{.spec.nodeSelector}{"\n"}'
 
 oc get mcp -o jsonpath='{range .items[*]}{.metadata.name}{" => "}{.spec.nodeSelector}{"\n"}{end}'
-----
 
-Expected output:
-----
-master => {"matchLabels":{"node-role.kubernetes.io/master":""}}
-worker => {"matchLabels":{"node-role.kubernetes.io/worker":""}}
-workshop => {"matchLabels":{"node-role.kubernetes.io/workshop":""}}
+# Expected output:
+# master => {"matchLabels":{"node-role.kubernetes.io/master":""}}
+# worker => {"matchLabels":{"node-role.kubernetes.io/worker":""}}
+# workshop => {"matchLabels":{"node-role.kubernetes.io/workshop":""}}
 ----
 
 [.lines_space]
@@ -265,7 +260,7 @@ oc get route hugepages-web -n hugepages-web -o jsonpath='{.spec.host}{"\n"}'
 
 **Application URL:** `http://hugepages-web-hugepages-web.apps.cluster-gxw6q.gxw6q.sandbox1933.opentlc.com`
 
-image::hugepages-app.png[]
+image::hugepages-app.png[width=60%]
 
 == Exercise 2: Troubleshooting Kernel Parameter Tuning
 
