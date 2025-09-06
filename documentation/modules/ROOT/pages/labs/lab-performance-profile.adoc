@@ -260,7 +260,7 @@ oc get route hugepages-web -n hugepages-web -o jsonpath='{.spec.host}{"\n"}'
 
 **Application URL:** `http://hugepages-web-hugepages-web.apps.cluster-gxw6q.gxw6q.sandbox1933.opentlc.com`
 
-image::hugepages-app.png[width=60%]
+image::hugepages-app.png[width=50%]
 
 == Exercise 2: Troubleshooting Kernel Parameter Tuning
 
@@ -412,3 +412,4 @@ This lab demonstrated critical troubleshooting skills for Performance Profile co
 * link:https://github.com/openshift/cluster-node-tuning-operator/blob/main/examples/performanceprofile/samples/performance_v2_performanceprofile.yaml[Performance Profile Examples]
 * link:https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/scalability_and_performance/what-huge-pages-do-and-how-they-are-consumed[HugePages Documentation]
 * link:https://access.redhat.com/solutions/7120569[OpenShift Node Conntrack Table Limitations]
+* link:https://github.com/openshift/cluster-node-tuning-operator/tree/main/examples/performanceprofile/samples[PerformanceProfile samples]
