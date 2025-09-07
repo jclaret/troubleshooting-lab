@@ -34,18 +34,18 @@ OpenShift Data Foundation provides software-defined storage using Ceph as the un
 
 ODF provides the following types of storage:
 
-- Block storage: ODF uses Ceph’s RADOS Block Device (RBD) to create block storage volumes that can be used for high-performance and demanding workloads.
-- File storage: ODF utilizes CephFS, a distributed file system built on top of Ceph, to provide scalable and shared file storage as an alternative to NFS.
-- Object storage: ODF leverages Ceph’s RADOS Gateway (RGW) and NooBaa to provide object storage. This can be used to store and retrieve large amounts of unstructured data, such as media files and backups.
+- **Block storage**: ODF uses Ceph’s RADOS Block Device (RBD) to create block storage volumes that can be used for high-performance and demanding workloads.
+- **File storage**: ODF utilizes CephFS, a distributed file system built on top of Ceph, to provide scalable and shared file storage as an alternative to NFS.
+- **Object storage**: ODF leverages Ceph’s RADOS Gateway (RGW) and NooBaa to provide object storage. This can be used to store and retrieve large amounts of unstructured data, such as media files and backups.
 
 ==== Access Modes
 
 In the CLI, the access modes are abbreviated to:
 
-RWO - ReadWriteOnce - the volume can be mounted as read-write by a single node. ReadWriteOnce access mode still can allow multiple pods to access (read from or write to) that volume when the pods are running on the same node
-ROX - ReadOnlyMany - the volume can be mounted as read-only by many nodes.
-RWX - ReadWriteMany - the volume can be mounted as read-write by many nodes.
-RWOP - ReadWriteOncePod - the volume can be mounted as read-write by a single Pod
+- **RWO** - ReadWriteOnce - the volume can be mounted as read-write by a single node. ReadWriteOnce access mode still can allow multiple pods to access (read from or write to) that volume when the pods are running on the same node
+- **ROX** - ReadOnlyMany - the volume can be mounted as read-only by many nodes.
+- **RWX** - ReadWriteMany - the volume can be mounted as read-write by many nodes.
+- **RWOP** - ReadWriteOncePod - the volume can be mounted as read-write by a single Pod
 
 == ODF Troubleshooting Commands
 
@@ -476,6 +476,8 @@ chmod +x odf-config.sh
 oc get storagecluster -n openshift-storage -w
 ----
 
+After activation, wait 5 minutes, then begin.
+
 === Investigation Challenge
 
 **YOUR MISSION**: Investigate the ODF cluster behavior and identify any issues.
@@ -581,8 +583,6 @@ Use the troubleshooting commands provided above to investigate the cluster step 
 ====
 **Solution Implementation:**
 
-Execute the fix script to restore ODF node labeling:
-
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
@@ -626,12 +626,13 @@ oc get nodes
 You'll deploy an application into the `odf-file` namespace. This application is designed to upload and store photos using ODF file storage. The application is expected to function with 3 pods in Running state, but something is not working correctly.
 
 **What gets deployed:**
+
 - The namespace `odf-file`
 - A Deployment that runs a photo upload application with 3 replicas
 - A Service and Route (so you can reach the app via web interface)
 - A PersistentVolumeClaim for storing uploaded photos
 
-**Expected behavior:** Once all pods are in Running state, you should be able to upload **all** the files found in the directory `/home/demo-user/troubleshooting-lab/Photos` through the web interface. If you encounter any errors during the upload process, check the pod logs to understand what's happening.
+Once all pods are in Running state, you should be able to upload **all** the files found in the directory `/home/demo-user/troubleshooting-lab/Photos` through the web interface. If you encounter any errors during the upload process, check the pod logs to understand what's happening.
 
 Navigate to the ODF troubleshooting lab and deploy the exercise scenario:
 
