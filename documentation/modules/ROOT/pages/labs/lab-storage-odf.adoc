@@ -13,12 +13,7 @@ By completing this lab, you will be able to:
 
 * Understand ODF architecture and Ceph cluster components
 * Use ODF debugging tools including Ceph toolbox and must-gather
-* Diagnose and resolve Ceph cluster health issues
-* Troubleshoot storage capacity alerts and read-only conditions
-* Resolve file storage (CephFS) capacity and mounting issues
-* Fix block storage (RBD) multi-attach and access mode problems
-* Debug S3 object storage connectivity and authentication issues
-* Apply systematic troubleshooting methodology for storage problems
+* Diagnose and resolve Ceph cluster health and storage issues
 
 === Reference Documentation
 
@@ -37,68 +32,20 @@ OpenShift Data Foundation provides software-defined storage using Ceph as the un
 
 === Understanding Storage Types and Access Modes
 
-ODF provides different storage types through dynamic provisioning. Understanding these options is crucial for troubleshooting storage issues:
+ODF provides the following types of storage:
 
-**Storage Classes and Access Modes:**
+- Block storage: ODF uses Ceph’s RADOS Block Device (RBD) to create block storage volumes that can be used for high-performance and demanding workloads.
+- File storage: ODF utilizes CephFS, a distributed file system built on top of Ceph, to provide scalable and shared file storage as an alternative to NFS.
+- Object storage: ODF leverages Ceph’s RADOS Gateway (RGW) and NooBaa to provide object storage. This can be used to store and retrieve large amounts of unstructured data, such as media files and backups.
 
-[cols="2,2,2,2,3",options="header"]
-|===
-|Access Mode |Backend/CSI Driver |Volume Mode |Filesystem |Storage Class Notes
+==== Access Modes
 
-|RWO, RWX
-|Ceph RBD
-|Block
-|Raw block device
-|RBD StorageClass with `openshift-storage.rbd.csi.ceph.com` provisioner
+In the CLI, the access modes are abbreviated to:
 
-|RWO
-|Ceph RBD
-|Filesystem
-|`ext4` (default)
-|RBD StorageClass with `openshift-storage.rbd.csi.ceph.com` provisioner
-
-|RWO, RWX
-|CephFS
-|Filesystem
-|CephFS managed filesystem
-|CephFS StorageClass with `openshift-storage.cephfs.csi.ceph.com` provisioner
-
-|RWOP
-|CephFS/RBD/NFS
-|Filesystem or Block
-|Depends on backend
-|ReadWriteOncePod mode for single-pod access
-|===
-
-**Key Points for Troubleshooting:**
-- **RWO (ReadWriteOnce)**: Can only be mounted by one pod at a time
-- **RWX (ReadWriteMany)**: Can be mounted by multiple pods simultaneously  
-- **RWOP (ReadWriteOncePod)**: Ensures only one pod can access the volume in the entire cluster
-- **Block vs Filesystem**: Block volumes are raw devices, filesystem volumes are pre-formatted
-
-=== Information Gathering: ODF Component Status
-
-Check the overall status of ODF components:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check ODF operator status
-oc get csv -n openshift-storage | grep odf
-
-# View storage cluster status
-oc get storagecluster -n openshift-storage
-
-# Check Ceph cluster health
-oc get cephcluster -n openshift-storage
-
-# View all ODF pods
-oc get pods -n openshift-storage
-
-# Check ODF dashboard status
-oc get route -n openshift-storage
-----
+RWO - ReadWriteOnce - the volume can be mounted as read-write by a single node. ReadWriteOnce access mode still can allow multiple pods to access (read from or write to) that volume when the pods are running on the same node
+ROX - ReadOnlyMany - the volume can be mounted as read-only by many nodes.
+RWX - ReadWriteMany - the volume can be mounted as read-write by many nodes.
+RWOP - ReadWriteOncePod - the volume can be mounted as read-write by a single Pod
 
 == ODF Troubleshooting Commands
 
@@ -108,16 +55,21 @@ When troubleshooting OpenShift Data Foundation issues, use these commands to inv
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Check ODF operator status
-oc get csv -n openshift-storage | grep odf
+
+# Get the OpenShift Data Foundation operator version and channel
+oc get csv -n openshift-storage
+oc get subs -n openshift-storage
+oc get installplan -n openshift-storage
+
+# Check ODF cluster status
 oc get storagecluster -n openshift-storage
 oc get cephcluster -n openshift-storage
 
 # View all ODF pods and their status
 oc get pods -n openshift-storage -o wide
 
-# Check ODF dashboard and routes
-oc get route -n openshift-storage
+# Enable Rook-Ceph Toolbox
+oc patch storagecluster ocs-storagecluster -n openshift-storage --type json --patch '[{ "op": "replace", "path": "/spec/enableCephTools", "value": true }]'
 
 # Check Ceph cluster health using toolbox
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
@@ -130,17 +82,6 @@ oc -n openshift-storage rsh deployment/rook-ceph-tools ceph osd stat
 # View cluster capacity and usage
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph df
 
-# Check storage classes and PVCs
-oc get storageclass | grep ocs
-oc get pvc -A | grep ocs
-
-# Check node labels for ODF storage nodes
-oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o custom-columns="NAME:.metadata.name,LABELS:.metadata.labels"
-
-# Check for ODF-related alerts
-oc get alerts -n openshift-storage
-oc get events -n openshift-storage --sort-by='.lastTimestamp' | grep -i "ceph\|odf\|storage"
-
 # Check Ceph monitor status
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mon stat
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mon dump
@@ -149,22 +90,32 @@ oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mon dump
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph fs status
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph mds stat
 
-# Check RGW (S3) status
+# Check RGW status
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph rgw stat
-oc get pods -n openshift-storage | grep rgw
 
-# Generating logs for Ceph or OpenShift Data Foundation cluster
-oc logs rook-ceph-operator-<ID> -n openshift-storage
+# Check storageclasses
+oc get storageclass | grep openshift-storage
 
-# Generating logs for plugin pods like cephfs or rbd to detect any problem in the PVC mount of the app-pod
+# Check node labels for ODF storage nodes
+oc get nodes -l cluster.ocs.openshift.io/openshift-storage
+
+# Check for events
+oc get events -n openshift-storage --sort-by='.lastTimestamp'
+
+# ODF Operator logs
+oc logs -n openshift-storage deployment/ocs-operator --tail=50
+oc logs -n openshift-storage deployment/rook-ceph-operator --tail=50
+oc logs -n openshift-storage deployment/noobaa-operator --tail=50
+
+# Logs for plugin pods like cephfs or rbd to detect any problem in the PVC mount of the app-pod
 oc logs csi-cephfsplugin-<ID> -n openshift-storage -c csi-cephfsplugin
 oc logs csi-rbdplugin-<ID> -n openshift-storage -c csi-rbdplugin
 
-# To generate logs for all the containers in the CSI pod
+# Logs for all the containers in the CSI pod
 oc logs csi-cephfsplugin-<ID> -n openshift-storage --all-containers
 oc logs csi-rbdplugin-<ID> -n openshift-storage --all-containers
 
-# Generating logs for cephfs or rbd provisioner pods to detect problems if PVC is not in BOUND state
+# Logs for cephfs or rbd provisioner pods to detect problems if PVC is not in BOUND state
 oc logs csi-cephfsplugin-provisioner-<ID> -n openshift-storage -c csi-cephfsplugin
 oc logs csi-rbdplugin-provisioner-<ID> -n openshift-storage -c csi-rbdplugin
 
@@ -177,31 +128,11 @@ oc cluster-info dump -n openshift-storage --output-directory=<directory-name>
 
 # When using Local Storage Operator, generating logs can be done using cluster-info command:
 oc cluster-info dump -n openshift-local-storage --output-directory=<directory-name>
-
-# To check the operator logs
-oc logs -n openshift-storage deployment/ocs-operator --tail=50
-
-# To check the operator events
-oc get events --sort-by=metadata.creationTimestamp -n openshift-storage
-
-# Get the OpenShift Data Foundation operator version and channel
-oc get csv -n openshift-storage
-oc get subs -n openshift-storage
-oc get installplan -n openshift-storage
-
-# Monitor ODF operator logs
-oc logs -n openshift-storage deployment/ocs-operator --tail=50
-
-# Check Ceph cluster status
-oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
-
-# Verify ODF components
-oc get pods -n openshift-storage
 ----
 
 == Collecting Diagnostic Information with Must-Gather 
 
-If Red Hat OpenShift Data Foundation is unable to automatically resolve a problem, use the must-gather tool to collect log files and diagnostic information so that you or Red Hat support can review the problem and determine a solution.
+Use the must-gather tool to collect log files and diagnostic information so that you or Red Hat support can review the problem and determine a solution.
 
 Run the must-gather command from the client connected to the OpenShift Data Foundation cluster:
 
@@ -212,7 +143,7 @@ Run the must-gather command from the client connected to the OpenShift Data Foun
 oc adm must-gather --image=registry.redhat.io/odf4/odf-must-gather-rhel9:v4.18 --dest-dir=<directory-name>
 ----
 
-<directory-name> is the name of the directory where you want to write the data to.
+*<directory-name>* is the name of the directory where you want to write the data to.
 
 This collects the following information in the specified directory:
 
@@ -220,13 +151,16 @@ This collects the following information in the specified directory:
 - Pod logs of all the Red Hat OpenShift Data Foundation related pods.
 - Output of some standard Ceph commands like Status, Cluster health, and others.
 
-To specify a relative time period for logs gathered, such as within 5 seconds or 2 days
+To specify a relative time period for logs gathered, such as within 5 hours or 2 days
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
+# within 5 hours
 oc adm must-gather --image=$(oc -n openshift-storage get deployment.apps/ocs-operator -o jsonpath='{.spec.template.metadata.annotations.operators\.openshift\.io/must-gather-image}') --dest-dir=_<directory-name>_ /usr/bin/gather since=5h
+
+# rfc3339-timestamp - example 2020-11-10T04:00:00+00:00
 oc adm must-gather --image=$(oc -n openshift-storage get deployment.apps/ocs-operator -o jsonpath='{.spec.template.metadata.annotations.operators\.openshift\.io/must-gather-image}') --dest-dir=_<directory-name>_ /usr/bin/gather since-time=2020-11-10T04:00:00+00:00 (starting from 4 am UTC on 11 Nov 2020)
 ----
 
@@ -259,8 +193,8 @@ OpenShift Data Foundation continuously monitors cluster health and can automatic
 
 The OpenShift Web Console provides several locations to monitor ODF health:
 
-* **Observe → Alerting → Firing**: Shows active alerts that need attention
-* **Home → Overview → Cluster**: Displays overall cluster health status
+* **Observe → Alerting → Firing**: Shows active alerts that need attention (Filter by Alerting and User)
+* **Home → Overview → Cluster → Storage**: Displays overall cluster health status
 * **Storage → Data Foundation → Storage System**: Detailed storage system information
 * **Storage → Data Foundation → Storage System → Overview**: Block, File, and Object storage status
 
@@ -273,40 +207,109 @@ ODF uses a comprehensive set of health checks to monitor cluster status. Each he
 **Reference Documentation:**
 For a complete list of health alerts and their resolutions, see the link:https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.18/html-single/troubleshooting_openshift_data_foundation/index#resolving-cluster-alerts_rhodf[ODF Troubleshooting Guide].
 
-**Common Issue Categories:**
+**See below some examples::**
 
-=== CephClusterErrorState
-**What it means:** The storage cluster has been in an ERROR state for more than 10 minutes, indicating a critical storage availability issue.
+=== CephClusterWarningState
+**What it means:** This alert reflects that the storage cluster has been in a warning state for an unacceptable amount of time. While the storage operations will continue to function in this state, it is recommended to fix the errors so that the cluster does not get into an error state. Check for other alerts that might have triggered prior to this one and troubleshoot those alerts first.
 
-**Impact:** Critical - Applications may not be able to access storage.
+**Impact:** High 
 
-**Troubleshooting Steps:**
-1. Check for other alerts that may have triggered this one
-2. Examine pod status and resource availability
-3. Verify node health and kubelet status
-4. Use Ceph tools to check storage component status
+**Troubleshooting Steps when:**
 
-=== CephMdsMissingReplicas
-**What it means:** The minimum required replicas for the Metadata Server (MDS) are not available, affecting CephFS storage class functionality.
+- pod status: pending
 
-**Impact:** High - CephFS volumes may not be accessible.
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check for resource issues, pending Persistent Volume Claims (PVCs), node assignment, and kubelet problems
+oc project openshift-storage
+oc get pod | grep {ceph-component}
 
-**Troubleshooting Steps:**
-1. Check MDS pod status and resource constraints
-2. Verify node assignment and resource availability
-3. Examine pod logs for specific error messages
-4. Ensure proper resource allocation for MDS pods
+# Set MYPOD as the variable for the pod that is identified as the problem pod
+MYPOD=<pod_name>
+oc get pod/${MYPOD} -o wide
+----
 
-=== CephNodeDown
-**What it means:** A storage node running Ceph pods has gone down, potentially affecting storage operations.
+- pod status: NOT pending, running, but NOT ready
 
-**Impact:** Medium - Storage continues to function but with reduced redundancy.
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check the readiness probe
+oc describe pod/${MYPOD}
+----
 
-**Troubleshooting Steps:**
-1. Verify node status and identify the failed node
-2. Check OSD pod scheduling and recovery
-3. Monitor Ceph cluster recovery process
-4. Ensure resource requirements are met for new node placement
+- pod status: NOT pending, but NOT running
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check for application or image issues:
+oc logs pod/${MYPOD}
+----
+
+Run the following command to gather the debugging information for the Ceph cluster
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+oc adm must-gather --image=registry.redhat.io/odf4/odf-must-gather-rhel9:v4.18
+----
+
+=== CephOSDDiskNotResponding
+**What it means:** A disk device is not responding. Check whether all the Object Storage Devices (OSDs) are up and running.
+
+**Impact:** Medium 
+
+**Troubleshooting Steps when:**
+
+- pod status: pending
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check for resource issues, pending Persistent Volume Claims (PVCs), node assignment, and kubelet problems
+oc project openshift-storage
+oc get pod | grep rook-ceph
+
+# Set MYPOD as the variable for the pod that is identified as the problem pod
+MYPOD=<pod_name>
+oc get pod/${MYPOD} -o wide
+----
+
+- pod status: NOT pending, running, but NOT ready
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check the readiness probe
+oc describe pod/${MYPOD}
+----
+
+- pod status: NOT pending, but NOT running
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Check for application or image issues:
+oc logs pod/${MYPOD}
+----
+
+Run the following command to gather the debugging information for the Ceph cluster
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+oc adm must-gather --image=registry.redhat.io/odf4/odf-must-gather-rhel9:v4.18
+----
 
 === PersistentVolumeUsageCritical
 **What it means:** A Persistent Volume Claim has exceeded 85% of its capacity, risking data loss.
@@ -314,9 +317,17 @@ For a complete list of health alerts and their resolutions, see the link:https:/
 **Impact:** High - Potential data loss if not addressed.
 
 **Resolution:**
-1. Expand the PVC size through the OpenShift Web Console
-2. Or delete unnecessary data to free up space
-3. Monitor usage patterns to prevent future issues
+
+Expand the PVC size to increase the capacity.
+
+- Log in to the OpenShift Web Console.
+- Click Storage → PersistentVolumeClaim.
+- Select openshift-storage from the Project drop-down list.
+- On the PVC you want to expand, click Action menu (⋮) → Expand PVC.
+- Update the Total size to the desired size.
+- Click Expand.
+- Alternatively, you can delete unnecessary data that may be taking up space.
+
 
 == Exercise 1: ODF CLI Installation and Health Check
 
@@ -333,7 +344,7 @@ Install the ODF CLI tool and use it to verify the health status of your OpenShif
 [source,bash, subs="+macros,+attributes"]
 ----
 # Navigate to the ODF files directory
-cd /home/demo-user/openshift-troubleshooting-lab/troubleshooting-lab/lab-materials/04-storage-odf/files
+cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/files
 
 # Extract the ODF CLI tool
 tar xzvf odf-cli-4.18.5-linux-amd64.tar.gz
@@ -368,29 +379,85 @@ odf get health
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Check ODF storage cluster
-odf get storagecluster -n openshift-storage
+odf get health
+Info: Checking if at least three mon pods are running on different nodes
+rook-ceph-mon-a-f9d9db54f-kmxkz	Running	openshift-storage	ip-10-0-58-83.ec2.internal
+rook-ceph-mon-b-7d8655f8c-cf899	Running	openshift-storage	ip-10-0-22-253.ec2.internal
+rook-ceph-mon-c-56f58b44b7-d9dw8	Running	openshift-storage	ip-10-0-31-119.ec2.internal
 
-# Check Ceph cluster status
-odf get cephcluster -n openshift-storage
+Info: Checking mon quorum and ceph health details
+Info: HEALTH_OK
 
-# Check ODF operator status
-odf get csv -n openshift-storage
+Info: Checking if at least three osd pods are running on different nodes
+rook-ceph-osd-0-58bb7bf6b5-9mwtk	Running	openshift-storage	ip-10-0-58-83.ec2.internal
+rook-ceph-osd-1-bbbf4bb9b-hxg5c	Running	openshift-storage	ip-10-0-22-253.ec2.internal
+rook-ceph-osd-2-6649755888-l5xgb	Running	openshift-storage	ip-10-0-31-119.ec2.internal
+
+Info: Pods that are in 'Running' or `Succeeded` status
+ceph-csi-controller-manager-5b7f76c6c5-kwcvf 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+csi-addons-controller-manager-657588b8b-sgcjz 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+csi-cephfsplugin-5qqll 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+csi-cephfsplugin-bb8n6 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+csi-cephfsplugin-frtqq 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+csi-cephfsplugin-hmxb6 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+csi-cephfsplugin-provisioner-69b55f8cfb-242js 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+csi-cephfsplugin-provisioner-69b55f8cfb-g8fxm 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+csi-cephfsplugin-s8zrp 	 Running 	 openshift-storage	 ip-10-0-38-52.ec2.internal
+csi-rbdplugin-26fcx 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+csi-rbdplugin-k6jfd 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+csi-rbdplugin-provisioner-5c94c7675-46bzw 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+csi-rbdplugin-provisioner-5c94c7675-hbw7m 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+csi-rbdplugin-swrbs 	 Running 	 openshift-storage	 ip-10-0-38-52.ec2.internal
+csi-rbdplugin-vmdtw 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+csi-rbdplugin-zj8lz 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+noobaa-core-0 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+noobaa-db-pg-0 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+noobaa-endpoint-7577dfb6bf-jckfb 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+noobaa-operator-56b464bcdc-hvdjh 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+ocs-metrics-exporter-67d6c74f9d-jrkdm 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+ocs-operator-69b97c4cfc-s9j82 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+odf-console-f99f69bcd-f527s 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+odf-operator-controller-manager-65f45d55b7-hdpv5 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+rook-ceph-crashcollector-ip-10-0-22-253.ec2.internal-6bf6cm4rvv 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+rook-ceph-crashcollector-ip-10-0-31-119.ec2.internal-5d766w7m2m 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+rook-ceph-crashcollector-ip-10-0-58-83.ec2.internal-69d7bcphvxc 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+rook-ceph-exporter-ip-10-0-22-253.ec2.internal-74688884dc-n9kzl 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+rook-ceph-exporter-ip-10-0-31-119.ec2.internal-6bcb566c5b-825qv 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+rook-ceph-exporter-ip-10-0-58-83.ec2.internal-7cf8847b47-4drjj 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+rook-ceph-mds-ocs-storagecluster-cephfilesystem-a-67d7865bbtb7r 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+rook-ceph-mds-ocs-storagecluster-cephfilesystem-b-564bb78cf4j5d 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+rook-ceph-mgr-a-76979d4dc8-7wczd 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+rook-ceph-mgr-b-55f6b5b447-ld8ft 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+rook-ceph-mon-a-f9d9db54f-kmxkz 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+rook-ceph-mon-b-7d8655f8c-cf899 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+rook-ceph-mon-c-56f58b44b7-d9dw8 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+rook-ceph-operator-859bd4447d-f7m85 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+rook-ceph-osd-0-58bb7bf6b5-9mwtk 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+rook-ceph-osd-1-bbbf4bb9b-hxg5c 	 Running 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+rook-ceph-osd-2-6649755888-l5xgb 	 Running 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+rook-ceph-osd-prepare-ocs-deviceset-0-data-0ng65v-7qwc9 	 Succeeded 	 openshift-storage	 ip-10-0-22-253.ec2.internal
+rook-ceph-osd-prepare-ocs-deviceset-1-data-0d2gf6-8xkwd 	 Succeeded 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+rook-ceph-osd-prepare-ocs-deviceset-2-data-0vg9c4-9gk8q 	 Succeeded 	 openshift-storage	 ip-10-0-31-119.ec2.internal
+rook-ceph-tools-695fddf56d-rgrf4 	 Running 	 openshift-storage	 ip-10-0-58-83.ec2.internal
+ux-backend-server-6d4d8fbd94-x5mgm 	 Running 	 openshift-storage	 ip-10-0-34-69.ec2.internal
+
+Warning: Pods that are 'Not' in 'Running' status
+
+Info: Checking placement group status
+Info: 	PgState: active+clean, PgCount: 144
+
+Info: Checking if at least one mgr pod is running
+rook-ceph-mgr-a-76979d4dc8-7wczd	Running	openshift-storage	ip-10-0-22-253.ec2.internal
+rook-ceph-mgr-b-55f6b5b447-ld8ft	Running	openshift-storage	ip-10-0-58-83.ec2.internal
 ----
 
 **Expected Result:** All components should show healthy status with no errors.
 
-=== Verification
+== Exercise 2: Troubleshooting ODF misconfiguration
 
-Confirm that:
-- ODF CLI is installed and working
-- Health check shows all components healthy
-- No error messages in any output
-- All ODF pods are running properly
+=== Scenario Setup
 
-== Exercise 2: Troubleshooting ODF Health Issues
-
-=== Scenario Setup: Storage Node Configuration Problems
+In this exercise, you will execute a script that modifies the current ODF deployment configuration. This script will intentionally introduce configuration changes that will cause the ODF cluster to enter a `HEALTH_WARNING` state, simulating a real-world troubleshooting scenario.
 
 Navigate to the ODF troubleshooting lab and deploy the exercise scenario:
 
@@ -399,7 +466,7 @@ Navigate to the ODF troubleshooting lab and deploy the exercise scenario:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Change to the ODF troubleshooting lab directory
-cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/00-odf-health
+cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/00-odf-miss
 
 # Execute the ODF configuration script
 chmod +x odf-config.sh
@@ -422,21 +489,6 @@ oc get storagecluster -n openshift-storage -w
 - What does the Ceph cluster health show?
 
 Use the troubleshooting commands provided earlier to investigate the cluster behavior systematically.
-
-=== Understanding the Problem
-
-If you discovered that the ODF storage cluster is degraded and OSD pods are failing, this indicates a node labeling issue that prevents ODF from identifying storage nodes correctly.
-
-=== Creating the Solution
-
-**YOUR MISSION**: Identify and resolve the node labeling issue to restore ODF functionality.
-
-**Steps to complete:**
-
-1. **Identify the root cause** of the ODF cluster degradation
-2. **Locate the affected storage nodes**
-3. **Restore the missing node labels**
-4. **Verify ODF cluster recovery**
 
 .Click to reveal the solution
 [%collapsible]
@@ -463,7 +515,8 @@ Monitor the ODF recovery process:
 [source,bash, subs="+macros,+attributes"]
 ----
 # Watch ODF storage cluster status during recovery
-oc get storagecluster -n openshift-storage -w
+oc get storagecluster -n openshift-storage
+oc get cephcluster -n openshift-storage
 
 # Monitor OSD pod restart
 oc get pods -n openshift-storage -w
@@ -475,19 +528,129 @@ oc get pods -n openshift-storage | grep osd
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
 
 # Verify node labels are restored
-oc get nodes -l cluster.ocs.openshift.io/openshift-storage -o custom-columns="NAME:.metadata.name,LABELS:.metadata.labels"
+oc get nodes -l cluster.ocs.openshift.io/openshift-storage
 ----
 
-== Exercise 3: File Storage Troubleshooting
+== Exercise 3: Troubleshooting ODF Health Issues
 
-Navigate to the file storage troubleshooting exercise:
+== Scenario Setup
+
+Run the following script to **activate the scenario**. It will **intentionally modify cluster state** to simulate a real incident.
+
+Navigate to the ODF troubleshooting lab and deploy the exercise scenario:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/02-odf-file
+# Change to the ODF troubleshooting lab directory
+cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/00-odf-health
 
+# Execute the ODF configuration script
+chmod +x odf-issue.sh
+./odf-issue.sh
+
+# Monitor ODF cluster status
+oc get storagecluster -n openshift-storage
+oc get cephcluster -n openshift-storage
+odf get health
+
+# Operator logs (recent tail)
+oc logs -n openshift-storage -l name=ocs-operator --tail=100
+oc logs -n openshift-storage -l app=rook-ceph-operator --tail=100
+oc logs -n openshift-storage -l name=odf-operator --tail=100
+----
+
+After activation, wait 3-5 minutes, then begin.
+
+=== Investigation Challenge
+
+**YOUR MISSION**: Investigate the ODF cluster behavior and identify any issues.
+
+**What to check:**
+
+- What is the status of the ODF storage cluster?
+- Are there any alerts or warnings in the ODF console?
+- Are there any OSD pods failing or in error state?
+- What does the Ceph cluster health show?
+
+Use the troubleshooting commands provided above to investigate the cluster step by step. You will also need to access the AWS Console (see AWS Console Access Setup) to complete the investigation.
+
+.Click to reveal the solution
+[%collapsible]
+====
+**Solution Implementation:**
+
+Execute the fix script to restore ODF node labeling:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Find the NotReady node from scenario activation
+oc get nodes
+----
+
+Restore the instance in AWS Console:
+
+- Open **AWS Console** → **Compute** → **EC2** → **Instances**.  
+- Select the instance that is in **Stopped** state.  
+- Click **Instance state** → **Start instance**.  
+- Confirm the action. The instance should transition to **Running**.
+
+====
+
+=== Verification
+
+Monitor the ODF recovery process:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Watch ODF storage cluster status during recovery
+oc get storagecluster -n openshift-storage
+oc get cephcluster -n openshift-storage
+
+# Check all pods are running
+oc get pods -n openshift-storage
+
+# Verify node labels are restored
+oc get nodes 
+----
+
+== Exercise 4: File Storage Troubleshooting
+
+=== Scenario Setup
+
+You'll deploy an application into the `odf-file` namespace. This application is designed to upload and store photos using ODF file storage. The application is expected to function with 3 pods in Running state, but something is not working correctly.
+
+**What gets deployed:**
+- The namespace `odf-file`
+- A Deployment that runs a photo upload application with 3 replicas
+- A Service and Route (so you can reach the app via web interface)
+- A PersistentVolumeClaim for storing uploaded photos
+
+**Expected behavior:** Once all pods are in Running state, you should be able to upload **all** the files found in the directory `/home/demo-user/troubleshooting-lab/Photos` through the web interface. If you encounter any errors during the upload process, check the pod logs to understand what's happening.
+
+Navigate to the ODF troubleshooting lab and deploy the exercise scenario:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+# Change to the second lab directory
+cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/02-odf-file
+----
+
+=== Deploying the Application
+
+Deploy the application and its configuration:
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
 # Deploy the exercise scenario
 oc apply -k .
 
@@ -505,12 +668,6 @@ oc describe storageclass ocs-storagecluster-cephfs
 # Test application functionality
 oc get route image-uploader -n odf-file -o jsonpath='{.spec.host}'
 ----
-
-**Expected Application Behavior:**
-
-- The application is expected to function on the previous HTTP route with 3 pods in Running state.
-- Once all pods are in Running state, you should be able to upload all the files found in the directory `/home/demo-user/troubleshooting-lab/Photos` through the web interface. If you encounter any errors during the upload process, check the pod logs to understand what's happening.
-- Application namespace is odf-file
 
 === Investigation Challenge
 
@@ -567,97 +724,24 @@ chmod +x solution/fix-pvc.sh
 **Expected Behavior After Fix:**
 After resolving both issues, the application should successfully upload all photos from the `/home/demo-user/troubleshooting-lab/Photos` directory through the web interface, with all 3 pods running and sharing the same storage volume.
 
+=== Verification
 
-====
-
-== Exercise 4: Block Storage Troubleshooting
-
-Navigate to the storage access exercise:
+Verify that the kernel parameter is correctly applied:
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-cd /home/demo-user/troubleshooting-lab/lab-materials/04-storage-odf/03-odf-block
+# Verify application now starts successfully
+oc get pods -n odf-file
+oc get pvc -n odf-file
 
-# Deploy application with intentional issue
-oc apply -k .
+# Test application functionality and upload all photos
+oc get route image-uploader -n odf-file -o jsonpath='{.spec.host}'
 ----
 
-=== Information Gathering: Storage Access Investigation
-
-Analyze the storage deployment problem:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Check pod status
-oc get pods -l app=rbd-hello -n odf-block -o wide
-
-# Examine PVC configuration
-oc get pvc -n odf-block
-oc describe pvc rbd-hello-pvc -n odf-block
-
-# Check storage class information
-oc get storageclass
-oc describe storageclass ocs-storagecluster-ceph-rbd
-
-# Investigate pod scheduling issues
-oc describe pod -l app=rbd-hello -n odf-block | grep -A 10 Events
-----
-
-=== Investigation Challenge
-
-Investigate the storage access mode issue:
-
-1. **Why can't multiple pods attach to the same volume?**
-2. **What storage class is being used and what are its capabilities?**
-
-.Click to reveal the solution
-[%collapsible]
-====
-**Solution Implementation: Fixing Access Mode Issues**
-
-Execute the fix script to resolve the access mode problem:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Execute the fix script
-chmod +x solution/fix-replicas.sh
-./solution/fix-replicas.sh
-----
 ====
 
-**Expected Application Behavior:**
-The application should display a "Hello World" message accessible via HTTP route once properly configured.
-
-**Problem Analysis:**
-Initially, the deployment will have 3 pods trying to use a `ocs-storagecluster-ceph-rbd` storage class with ReadWriteOnce (RWO) access mode. This creates a multi-attach error because RWO volumes can only be attached to one pod at a time.
-
-**Error Details:**
-You will see pods stuck in different states due to the multi-attach issue:
-
-```
-oc get pod
-NAME                         READY   STATUS     RESTARTS   AGE
-rbd-hello-74f4cbcd4c-76p6p   0/1     Init:0/1   0          2m3s
-rbd-hello-74f4cbcd4c-hbhwn   0/1     Init:0/1   0          2m3s
-rbd-hello-74f4cbcd4c-t6js6   0/1     Running    0          2m3s
-```
-
-**Error Message:**
-```
-Warning  FailedAttachVolume  2m20s  attachdetach-controller  Multi-Attach error for volume "pvc-4bffb8ac-1ab2-4b97-b1fd-4fcadbd2a64d" Volume is already used by pod(s) rbd-hello-74f4cbcd4c-t6js6
-```
-
-**Root Cause:**
-The application is configured with 3 replicas but uses a ReadWriteOnce (RWO) Persistent Volume Claim, which can only be attached to one pod at a time. This causes the multi-attach error and prevents multiple pods from running simultaneously.
-
-**Solution:**
-To resolve this issue, the deployment should be scaled down to 1 replica since RWO volumes cannot be shared across multiple pods. After scaling down, the application will successfully display the "Hello World" message via the HTTP route.
 
 == Lab Summary
 
@@ -675,3 +759,5 @@ This comprehensive ODF troubleshooting lab covered critical storage scenarios:
 * link:https://access.redhat.com/documentation/en-us/red_hat_openshift_data_foundation/4.18/html/troubleshooting_openshift_data_foundation[ODF Troubleshooting Guide]
 * link:https://access.redhat.com/solutions/4502501[Red Hat Solutions for ODF Issues]
 * link:https://access.redhat.com/downloads/content/547/ver=4/rhel---9/4.17.0/x86_64/product-software[Download odf-cli tool]
+* link https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes[AccessModes]
+* link https://access.redhat.com/articles/5001441[Supported configurations for Red Hat OpenShift Data Foundation 4.X]
