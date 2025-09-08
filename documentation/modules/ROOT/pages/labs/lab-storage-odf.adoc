@@ -128,6 +128,9 @@ oc cluster-info dump -n openshift-storage --output-directory=<directory-name>
 
 # When using Local Storage Operator, generating logs can be done using cluster-info command:
 oc cluster-info dump -n openshift-local-storage --output-directory=<directory-name>
+
+# Check PVC being resized
+oc describe pvc upload-data | grep Resize
 ----
 
 == Collecting Diagnostic Information with Must-Gather 
@@ -496,16 +499,32 @@ Use the troubleshooting commands provided earlier to investigate the cluster beh
 [%collapsible]
 ====
 **Solution Implementation:**
-
-Execute the fix script to restore ODF node labeling:
-
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
+# Check storage pods in Pending
+oc get po -n openshift-storage | egrep -v "Completed|Running"
+
+# Check why MON/OSD pods are in Pending
+
+oc describe pod rook-ceph-mon-XXXXX
+
+  Warning  FailedScheduling  9s (x10 over 94s)  default-scheduler  0/8 nodes are available: 1 Insufficient cpu, 2 node(s) didn't match Pod's node affinity/selector, 2 node(s) didn't match pod anti-affinity rules, 3 node(s) had untolerated taint {node-role.kubernetes.io/master: }. preemption: 0/8 nodes are available: 3 node(s) didn't match pod anti-affinity rules, 5 Preemption is not helpful for scheduling.
+
+oc describe pod rook-ceph-osd-XXXXX
+
+  Warning  FailedScheduling  4m45s  default-scheduler  0/8 nodes are available: 3 node(s) had untolerated taint {node-role.kubernetes.io/master: }, 5 node(s) didn't match Pod's node affinity/selector. preemption: 0/8 nodes are available: 8 Preemption is not helpful for scheduling.
+
+# Verify node labels
+oc get nodes -l cluster.ocs.openshift.io/openshift-storage
+
 # Execute the fix script
 ./solution/odf-fix.sh
 ----
+
+The ODF cluster will take approximately 5-10 minutes to return to HEALTH_OK status after applying the fix.
+
 ====
 
 === Verification
@@ -528,14 +547,13 @@ oc get pods -n openshift-storage | grep osd
 
 # Verify Ceph cluster health after recovery
 oc -n openshift-storage rsh deployment/rook-ceph-tools ceph status
-
-# Verify node labels are restored
-oc get nodes -l cluster.ocs.openshift.io/openshift-storage
 ----
+
+The ODF cluster will take approximately 5-10 minutes to return to HEALTH_OK status after applying the fix.
 
 == Exercise 3: Troubleshooting ODF Health Issues
 
-== Scenario Setup
+=== Scenario Setup
 
 Run the following script to **activate the scenario**. It will **intentionally modify cluster state** to simulate a real incident.
 
@@ -589,14 +607,19 @@ Use the troubleshooting commands provided above to investigate the cluster step 
 ----
 # Find the NotReady node from scenario activation
 oc get nodes
+
+# Generate AWS console login URL with temporary credentials
+aws-vault login lab-profile --backend=file --stdout
 ----
 
 Restore the instance in AWS Console:
 
 - Open **AWS Console** → **Compute** → **EC2** → **Instances**.  
-- Select the instance that is in **Stopped** state.  
+- Select the instance that is in **Stopped** state (remove filter "Instance state = running")  
 - Click **Instance state** → **Start instance**.  
 - Confirm the action. The instance should transition to **Running**.
+
+The ODF cluster will take approximately 5-10 minutes to return to HEALTH_OK status after applying the fix.
 
 ====
 
@@ -619,6 +642,8 @@ oc get pods -n openshift-storage
 oc get nodes 
 ----
 
+The ODF cluster will take approximately 5-10 minutes to return to HEALTH_OK status after applying the fix.
+
 == Exercise 4: File Storage Troubleshooting
 
 === Scenario Setup
@@ -630,7 +655,7 @@ You'll deploy an application into the `odf-file` namespace. This application is 
 - The namespace `odf-file`
 - A Deployment that runs a photo upload application with 3 replicas
 - A Service and Route (so you can reach the app via web interface)
-- A PersistentVolumeClaim for storing uploaded photos
+- A PersistentVolumeClaim using storageclass ocs-storagecluster-cephfs and RWX for storing uploaded photos
 
 Once all pods are in Running state, you should be able to upload **all** the files found in the directory `/home/demo-user/troubleshooting-lab/Photos` through the web interface. If you encounter any errors during the upload process, check the pod logs to understand what's happening.
 
@@ -706,17 +731,30 @@ Execute the fix script to recreate the PVC with proper size and access mode:
 # Execute the fix script
 chmod +x solution/fix-pvc.sh
 ./solution/fix-pvc.sh
+
+# Checl application pods
+oc get pod
+NAME                              READY   STATUS              RESTARTS   AGE
+image-uploader-745bb8fb7b-6gqtp   0/1     ContainerCreating   0          4m7s
+image-uploader-745bb8fb7b-7pwp5   1/1     Running             0          4m7s
+image-uploader-745bb8fb7b-qpgp2   0/1     ContainerCreating   0          4m7s
+
+
+oc describe pod image-uploader-745bb8fb7b-qpgp2
+  
+  Warning  FailedAttachVolume  3m36s  attachdetach-controller  Multi-Attach error for volume "pvc-39a8389f-4319-4255-beda-43cd33043480" Volume is already used by pod(s) image-uploader-745bb8fb7b-7pwp5
+
 ----
 
 **During the initial deployment, you will encounter 2 problems:**
 
-- **AccessMode Issue**: This will cause errors and leave pods in ContainerCreating or Pending state
+- **AccessMode Issue**: With ReadWriteOnce, the PVC can be mounted read-write by only one node at a time. If replicas land on different nodes, the first node attaches the volume and the others stay Pending/ContainerCreating with a multi-attach/exclusive-access error until the AccessMode is changed to RWX
 
    ```
    Warning  FailedAttachVolume  2m51s  attachdetach-controller  Multi-Attach error for volume "pvc-d1f6cf6e-ee78-44a8-92fd-49f361113b73" Volume is already used by pod(s) image-uploader-745bb8fb7b-cb872, image-uploader-745bb8fb7b-ftmp4
    ```
 
-- **PVC Size Issue**: This will prevent file uploads with errors like:
+- **PVC Size Issue**: This will prevent file uploads with errors like this, the fix should be resize PVC from console or editing PVC and changing the size 
 
    ```
    OSError: [Errno 122] Disk quota exceeded
@@ -760,5 +798,5 @@ This comprehensive ODF troubleshooting lab covered critical storage scenarios:
 * link:https://access.redhat.com/documentation/en-us/red_hat_openshift_data_foundation/4.18/html/troubleshooting_openshift_data_foundation[ODF Troubleshooting Guide]
 * link:https://access.redhat.com/solutions/4502501[Red Hat Solutions for ODF Issues]
 * link:https://access.redhat.com/downloads/content/547/ver=4/rhel---9/4.17.0/x86_64/product-software[Download odf-cli tool]
-* link https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes[AccessModes]
-* link https://access.redhat.com/articles/5001441[Supported configurations for Red Hat OpenShift Data Foundation 4.X]
+* link:https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes[AccessModes]
+* link:https://access.redhat.com/articles/5001441[Supported configurations for Red Hat OpenShift Data Foundation 4.X]

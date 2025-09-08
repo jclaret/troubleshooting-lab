@@ -1,20 +1,24 @@
 #!/bin/bash
 
-echo "ODF Exercise - Initializing cluster configuration..."
+# System Configuration Script
+# This script applies system configuration changes
 
-# Get the first worker node with ODF storage
-ODF_NODE=$(oc get nodes -l cluster.ocs.openshift.io/openshift-storage='' --no-headers | head -1 | awk '{print $1}')
+# Find nodes with both MON and OSD pods running
+MON_NODES=$(oc get pods -n openshift-storage -l app=rook-ceph-mon -o wide --no-headers | grep Running | awk '{print $7}' | sort -u)
+OSD_NODES=$(oc get pods -n openshift-storage -l app=rook-ceph-osd -o wide --no-headers | grep Running | awk '{print $7}' | sort -u)
 
-if [ -z "$ODF_NODE" ]; then
-    echo "No ODF storage nodes found!"
+# Find intersection of nodes that have both MON and OSD pods
+TARGET_NODES=$(comm -12 <(echo "$MON_NODES" | sort) <(echo "$OSD_NODES" | sort))
+
+if [ -z "$TARGET_NODES" ]; then
     exit 1
 fi
 
-echo "Applying configuration changes..."
-# Execute shutdown via debug session
-oc debug node/$ODF_NODE -- chroot /host shutdown -h 1 >/dev/null 2>&1
+# Select the first node that has both MON and OSD pods
+TARGET_NODE=$(echo "$TARGET_NODES" | head -1)
 
-echo ""
-echo "Configuration completed successfully."
-echo "Wait 2-3 minutes then begin investigation."
-echo ""
+# Save target node information for fix script
+echo "$TARGET_NODE" > /tmp/odf-issue-node.txt
+
+# Execute shutdown via debug session
+oc debug node/$TARGET_NODE -- chroot /host shutdown -h 1 >/dev/null 2>&1
