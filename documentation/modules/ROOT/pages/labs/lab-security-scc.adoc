@@ -190,7 +190,8 @@ rmmod: ERROR: could not remove module hello: Operation not permitted
 
 The application is failing because:
 
-- The ServiceAccount `module-loader` exists but has no SCC permissions
+- Application doesnt have SCC defined
+- The ServiceAccount `module-loader` doesnt exist and has no SCC permissions
 - The custom SCC `scc-sysmodule-min` exists but has no users assigned to it
 
 **Step-by-Step Investigation:**
@@ -228,57 +229,47 @@ find must-gather* -ipath '*kube-apiserver*/*audit*.log.gz' | xargs zgrep -h secu
 
 **Solution Implementation:**
 
-1. **Grant SCC permissions to the existing ServiceAccount:**
+Grant SCC permissions to the existing ServiceAccount:
+
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
+# Create SA
+oc apply -f serviceaccount.yaml
+
+# Add SCC and SA to module-app.yaml
+oc edit module-app.yaml
+
 # Grant SCC permissions to the existing ServiceAccount
 oc adm policy add-scc-to-user scc-sysmodule-min -z module-loader -n module-app
 
+# Restart application
 oc -n module-app rollout restart deploy/kernel-mod-app
-----
 
-**Verification:**
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Watch the deployment rollout
-oc rollout status deployment/kernel-mod-app -n module-app
-
-# Check the new pod's SCC
-oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].metadata.annotations.openshift\.io/scc}'
-
-# Check application logs for successful module loading
-oc logs -l app=kernel-mod-app -n module-app --tail=20
-
-# Verify SCC permissions
+# Verify (expected yes)
+oc auth can-i use scc/scc-sysmodule-min --as=system:serviceaccount:module-app:module-loader
 oc adm policy who-can use scc scc-sysmodule-min
+
+# To fix all
+oc delete -k solution
+oc apply -k solution
 ----
 
 ====
 
-**Verification and Analysis:**
+**Verification**
 
 [.lines_space]
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
-# Watch the deployment rollout
-oc rollout status deployment/kernel-mod-app -n module-app
-
 # Check the new pod's SCC
 oc get pod -l app=kernel-mod-app -n module-app -o jsonpath='{.items[0].metadata.annotations.openshift\.io/scc}'
 
 # Check application logs for successful module loading
 oc logs -l app=kernel-mod-app -n module-app --tail=20
 
-# Aplica de nuevo (sin problema si ya está hecho)
-
-# Verify (expected yes)
-oc auth can-i use scc/scc-sysmodule-min --as=system:serviceaccount:module-app:module-loader
 
 ----
 

@@ -106,7 +106,7 @@ Navigate to the etcd troubleshooting lab directory and deploy the exercise scena
 cd /home/demo-user/troubleshooting-lab/lab-materials/06-etcd
 
 # Deploy the exercise scenario
-oc apply -k .
+./setup.sh
 
 # Wait 5min until etcd got DEGRADED
 # Monitor cluster operator status
@@ -161,6 +161,11 @@ Apply the fix to restore etcd functionality:
 [.console-input]
 [source,bash, subs="+macros,+attributes"]
 ----
+# Check etcd pod which is failing
+oc logs etcd-ip-10-0-26-124.ec2.internal
+...
+Waiting for ports 2379, 2380 and 9978 to be released......
+
 # Execute the fix script
 oc apply -k solution/
 

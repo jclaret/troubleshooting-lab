@@ -15,25 +15,79 @@ spec:
   hostNetwork: true
   containers:
   - name: debug
-    image: quay.io/quay/busybox
+    image: quay.io/openshift/origin-cli:latest
     command:
-      - /bin/sh
+      - /bin/bash
       - -c
       - |
-        echo "Waiting before disrupting etcd..."
-        sleep 10
-        echo "Looking for etcd container..."
-        chroot /host crictl ps -a | grep etcd || echo "ETCD not found"
-        ETCD_ID=$(chroot /host crictl ps -a | grep "etcd " | grep Running | awk '{print $1}')
-        if [ ! -z "$ETCD_ID" ]; then
-          echo "Stopping etcd container ($ETCD_ID)..."
-          chroot /host crictl stop "$ETCD_ID"
-          echo "Waiting for etcd to stop..."
-          sleep 5
+        echo "Starting etcd disruption process..."
+        
+        # Function to start netcat listener on port 2379
+        start_netcat() {
+          echo "Starting netcat on port 2379..."
+          chroot /host bash -c 'nc -l -k -p 2379 -e /bin/cat' &
+          NC_PID=$!
+          echo "Netcat started with PID: $NC_PID"
+          return $NC_PID
+        }
+        
+        # Function to find and stop only the main etcd container
+        stop_main_etcd() {
+          # Find the main etcd container using column 7
+          MAIN_ETCD_ID=$(chroot /host crictl ps | grep "Running" | grep etcd | awk '$7 == "etcd" {print $1}')
+          
+          if [ ! -z "$MAIN_ETCD_ID" ]; then
+            echo "Found main etcd container: $MAIN_ETCD_ID"
+            echo "Stopping main etcd container..."
+            chroot /host crictl stop "$MAIN_ETCD_ID"
+            echo "Main etcd container stopped"
+            return 0
+          else
+            echo "Main etcd container not found"
+            return 1
+          fi
+        }
+        
+        # Start netcat to occupy port 2379 first
+        start_netcat
+        NETCAT_PID=$!
+        
+        # Wait a moment for netcat to bind
+        sleep 2
+        
+        # Verify netcat is listening
+        if chroot /host netstat -tuln | grep ":2379 "; then
+          echo "Port 2379 successfully occupied by netcat"
+        else
+          echo "Failed to bind to port 2379"
         fi
-        echo "Starting netcat on port 2379 to block etcd..."
-        # Use a different approach to block the port
-        chroot /host /bin/sh -c 'while true; do nc -l -p 2379 -e /bin/false 2>/dev/null || sleep 1; done'
+        
+        # Now stop the main etcd container
+        stop_main_etcd
+        
+        # Keep monitoring and stopping etcd if it tries to restart
+        echo "Monitoring for etcd restart attempts..."
+        while true; do
+          sleep 5
+          
+          # Check if main etcd container is running again
+          MAIN_ETCD_ID=$(chroot /host crictl ps | grep "Running" | grep etcd | awk '$7 == "etcd" {print $1}')
+          
+          if [ ! -z "$MAIN_ETCD_ID" ]; then
+            echo "Detected etcd restart attempt, stopping container: $MAIN_ETCD_ID"
+            chroot /host crictl stop "$MAIN_ETCD_ID"
+          fi
+          
+          # Verify netcat is still running
+          if ! chroot /host netstat -tuln | grep ":2379 " >/dev/null; then
+            echo "Netcat died, restarting..."
+            kill $NETCAT_PID 2>/dev/null || true
+            start_netcat
+            NETCAT_PID=$!
+          fi
+          
+          echo "Etcd disruption active - main etcd stopped, port 2379 blocked"
+        done
     securityContext:
       privileged: true
     volumeMounts:
