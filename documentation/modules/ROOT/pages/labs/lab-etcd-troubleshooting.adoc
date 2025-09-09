@@ -94,7 +94,7 @@ oc rsh -n openshift-etcd etcd-$(oc get nodes -l node-role.kubernetes.io/master -
 
 == Exercise 2: Troubleshooting etcd Cluster Issues
 
-=== Scenario Setup: Control Plane Service Disruption
+=== Scenario Setup
 
 Navigate to the etcd troubleshooting lab directory and deploy the exercise scenario:
 
@@ -166,6 +166,8 @@ oc logs etcd-ip-10-0-26-124.ec2.internal
 ...
 Waiting for ports 2379, 2380 and 9978 to be released......
 
+oc debug node/ip-10-0-26-124.ec2.internal -- chroot /host ss -tlpn sport = :2379
+
 # Execute the fix script
 oc apply -k solution/
 
@@ -220,5 +222,5 @@ This lab demonstrated critical etcd troubleshooting skills for OpenShift control
 
 == Additional Resources
 
-* link:https://docs.redhat.com/en/documentation/red_hat_build_of_microshift/4.18/html/troubleshooting/microshift-etcd-troubleshoot[Troubleshoot etcd]
+* link:https://access.redhat.com/articles/6967785[Consolidated Article for etcd guidelines with OpenShift Container Platform 4]
 * link:https://access.redhat.com/articles/6271341[ETCD performance troubleshooting guide for OpenShift Container Platform]

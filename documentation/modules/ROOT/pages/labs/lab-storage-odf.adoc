@@ -762,6 +762,7 @@ oc describe pod image-uploader-745bb8fb7b-qpgp2
 
 **Expected Behavior After Fix:**
 After resolving both issues, the application should successfully upload all photos from the `/home/demo-user/troubleshooting-lab/Photos` directory through the web interface, with all 3 pods running and sharing the same storage volume.
+====
 
 === Verification
 
@@ -779,7 +780,7 @@ oc get pvc -n odf-file
 oc get route image-uploader -n odf-file -o jsonpath='{.spec.host}'
 ----
 
-====
+
 
 
 == Lab Summary

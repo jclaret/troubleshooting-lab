@@ -237,6 +237,7 @@ Grant SCC permissions to the existing ServiceAccount:
 ----
 # Create SA
 oc apply -f serviceaccount.yaml
+oc apply -f scc.yaml
 
 # Add SCC and SA to module-app.yaml
 oc edit module-app.yaml

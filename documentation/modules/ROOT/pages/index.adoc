@@ -1,4 +1,4 @@
-= Openshift Troubleshotting Lab
+= Openshift Troubleshooting Lab
 :page-layout: home
 :!sectids:
 
@@ -20,7 +20,7 @@ This lab environment is based on a pre-configured infrastructure provided throug
 When you launch the lab, you will have 12 hours by default to complete all exercises before the environment is automatically destroyed. The estimated time breakdown is as follows:
 
 * Environment Provisioning: 2 hours
-* Hands-on Laboratory Work: 5 hours
+* Hands-on Laboratory Work: 2 hours
 * Buffer Time: 5 hours (for troubleshooting, review, or additional practice)
 
 == Time Extension Options
