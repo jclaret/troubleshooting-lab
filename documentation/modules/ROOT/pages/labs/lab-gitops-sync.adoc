@@ -380,7 +380,7 @@ Using the provided `must-gather-file1`, analyze the site-configs application and
 **Scenario:** A site-policies application managing OCM governance policies shows as "Degraded" with policy compliance issues.
 
 **Your Task:**
-Using the provided `must-gather-file1`, analyze the site-policies application and determine:
+Using the provided `gitops-must-gather` and `acm-must-gather` under /var/games/, analyze the site-policies application and determine:
 
 1. **Policy Compliance Status:**
    - Which specific policies are showing as "NonCompliant"?

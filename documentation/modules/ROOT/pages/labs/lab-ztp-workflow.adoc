@@ -132,11 +132,18 @@ This technique is invaluable for:
 ----
 # Verify required resources exist
 oc get clusterimageset
-oc get secret assisted-deployment-pull-secret -n <namespace>
+oc get secret <pull-secret-name> -n <spoke-namespace>
 
-# Check ZTP-related events
-oc get events -A --field-selector reason=FailedMount,reason=FailedScheduling
-----
+# Manually verify pull secret credentials
+oc get secret <pull-secret-name> -n <spoke-namespace> -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d > /tmp/pull-secret.json
+
+# Test credentials with podman pull
+podman pull --authfile /tmp/pull-secret.json quay.io/openshift-release-dev/ocp-release:<version>-x86_64
+
+# Clean up temporary file
+rm -f /tmp/pull-secret.json
+
+
 
 == Troubleshooting BareMetal Host (BMH) Issues
 
@@ -189,7 +196,7 @@ Common causes for BMH inspection failures:
 # Test BMC connectivity from hub cluster
 oc debug node/<any-node> -- curl -k -u <username>:<password> https://<bmc-ip>/redfish/v1/Systems
 
-# Check ironic inspector logs
+# Check metal3 operator logs
 oc logs -n openshift-machine-api -l app=metal3-ironic-inspector -f
 
 # Examine BMH credentials
@@ -199,7 +206,7 @@ oc get secret <bmh-secret> -n <namespace> -o yaml
 oc get agent -A -o wide
 
 # Review ironic conductor logs for inspection details
-oc logs -n openshift-machine-api -l app=metal3-ironic-conductor -f
+oc logs -n openshift-machine-api -l baremetal.openshift.io/cluster-baremetal-operator=metal3-baremetal-operator
 ----
 
 === BMH Inspection Debugging Procedures
@@ -293,6 +300,9 @@ oc get image.config.openshift.io/cluster -o yaml
 # Review node pull secret configuration
 oc debug node/<any-node> -- cat /var/lib/kubelet/config.json
 
+# Review the pull-secret 
+oc get secret pull-secret -n openshift-config -o yaml
+
 # Test image pull from problematic registry
 oc debug node/<any-node> -- podman pull --authfile /var/lib/kubelet/config.json <problematic-image>
 
@@ -350,7 +360,7 @@ Common AgentClusterInstall failure patterns:
 oc get agent -n <cluster-name> -o wide
 
 # Review cluster validation status
-oc describe agentclusterinstall <aci-name> -n <namespace> | grep -A 20 "Validation"
+oc describe agentclusterinstall <aci-name> -n <namespace> 
 
 # Check installation progress events
 oc get events -n <namespace> --field-selector involvedObject.name=<aci-name> --sort-by='.lastTimestamp'
@@ -433,6 +443,39 @@ This comprehensive ZTP troubleshooting guide provides essential procedures for m
 * **Installation Monitoring**: Approaches for tracking AgentClusterInstall progress and failure analysis
 * **Systematic Logging**: Comprehensive log collection and correlation strategies
 * **End-to-End Visibility**: Complete troubleshooting coverage from hub to spoke clusters
+
+
+
+== Exercises: 
+
+Login to commonlab portal: 
+
+
+And then ssh to the jump-server: 10.23.223.77
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+
+Logins for teams: 
+
+team1
+team2
+team3
+
+PW: To be shared
+
+Each team user has it's own home-directory with acm kubeconfig file and git-repositories for site-policies and site-configs. 
+
+----
+
+=== Exercise 1: Identify why hpe-snop1 cluster deployment is stuck
+
+=== Exercise 2: Identify why hpe-mno cluster deployment is stuck
+
+=== Exercise 3: Identify why hpe-sno2 cluster deployment is stuck
+
 
 == Additional Resources
 
