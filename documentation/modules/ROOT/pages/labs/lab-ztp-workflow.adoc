@@ -89,40 +89,6 @@ When SiteConfig processing fails, investigate these common problem areas:
 - Check required dependencies: `oc get clusterimageset`, `oc get secret assisted-deployment-pull-secret -n <namespace>`
 ====
 
-=== Local SiteConfig Validation and CR Extraction
-
-Before troubleshooting deployed resources, you can locally preview what CRs will be generated from a SiteConfig using the kustomize plugin:
-
-[.lines_space]
-[.console-input]
-[source,bash, subs="+macros,+attributes"]
-----
-# Install kustomize if not available
-curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-sudo mv kustomize /usr/local/bin/
-
-# Clone the CNF features deploy repository for SiteConfig generator plugin
-git clone https://github.com/openshift-kni/cnf-features-deploy.git
-cd cnf-features-deploy/ztp/siteconfig-generator-kustomize-plugin
-
-# Extract generated CRs from SiteConfig locally (preview mode)
-kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory
-
-# Save generated manifests for analysis
-kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory > generated-resources.yaml
-
-# Analyze specific resource types that will be created
-kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory | grep -A 5 -B 5 "kind: ClusterDeployment"
-kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory | grep -A 5 -B 5 "kind: AgentClusterInstall"
-kustomize build --enable-alpha-plugins /path/to/your/siteconfig/directory | grep -A 5 -B 5 "kind: BareMetalHost"
-----
-
-This technique is invaluable for:
-
-* **Pre-deployment Validation**: Verify SiteConfig syntax and generated resource correctness
-* **Resource Debugging**: Identify malformed or missing resources before ArgoCD processing
-* **Template Understanding**: See exact resource specifications that will be applied
-* **Diff Analysis**: Compare expected vs. actual cluster state
 
 === Troubleshooting SiteConfig Processing
 
@@ -132,11 +98,19 @@ This technique is invaluable for:
 ----
 # Verify required resources exist
 oc get clusterimageset
-oc get secret assisted-deployment-pull-secret -n <namespace>
+oc get secret <pull-secret-name> -n <spoke-namespace>
 
-# Check ZTP-related events
-oc get events -A --field-selector reason=FailedMount,reason=FailedScheduling
+# Manually verify pull secret credentials
+oc get secret <pull-secret-name> -n <spoke-namespace> -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d > /tmp/pull-secret.json
+
+# Test credentials with podman pull
+podman pull --authfile /tmp/pull-secret.json quay.io/openshift-release-dev/ocp-release:<version>-x86_64
+
+# Clean up temporary file
+rm -f /tmp/pull-secret.json
+
 ----
+
 
 == Troubleshooting BareMetal Host (BMH) Issues
 
@@ -189,7 +163,7 @@ Common causes for BMH inspection failures:
 # Test BMC connectivity from hub cluster
 oc debug node/<any-node> -- curl -k -u <username>:<password> https://<bmc-ip>/redfish/v1/Systems
 
-# Check ironic inspector logs
+# Check metal3 operator logs
 oc logs -n openshift-machine-api -l app=metal3-ironic-inspector -f
 
 # Examine BMH credentials
@@ -199,7 +173,7 @@ oc get secret <bmh-secret> -n <namespace> -o yaml
 oc get agent -A -o wide
 
 # Review ironic conductor logs for inspection details
-oc logs -n openshift-machine-api -l app=metal3-ironic-conductor -f
+oc logs -n openshift-machine-api -l baremetal.openshift.io/cluster-baremetal-operator=metal3-baremetal-operator
 ----
 
 === BMH Inspection Debugging Procedures
@@ -293,6 +267,9 @@ oc get image.config.openshift.io/cluster -o yaml
 # Review node pull secret configuration
 oc debug node/<any-node> -- cat /var/lib/kubelet/config.json
 
+# Review the pull-secret 
+oc get secret pull-secret -n openshift-config -o yaml
+
 # Test image pull from problematic registry
 oc debug node/<any-node> -- podman pull --authfile /var/lib/kubelet/config.json <problematic-image>
 
@@ -350,7 +327,7 @@ Common AgentClusterInstall failure patterns:
 oc get agent -n <cluster-name> -o wide
 
 # Review cluster validation status
-oc describe agentclusterinstall <aci-name> -n <namespace> | grep -A 20 "Validation"
+oc describe agentclusterinstall <aci-name> -n <namespace> 
 
 # Check installation progress events
 oc get events -n <namespace> --field-selector involvedObject.name=<aci-name> --sort-by='.lastTimestamp'
@@ -434,6 +411,37 @@ This comprehensive ZTP troubleshooting guide provides essential procedures for m
 * **Systematic Logging**: Comprehensive log collection and correlation strategies
 * **End-to-End Visibility**: Complete troubleshooting coverage from hub to spoke clusters
 
+
+
+== Exercises: 
+
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
+----
+
+Login to commonlab portal: 
+
+And then ssh to the jump-server: 10.23.223.77
+
+Logins for teams: 
+
+team1
+team2
+team3
+
+PW: To be shared
+
+Each team user has it's own home-directory with acm kubeconfig file and git-repositories for site-policies and site-configs. 
+
+
+=== Exercise 1: Identify why hpe-snop1 cluster deployment is stuck
+
+=== Exercise 2: Identify why hpe-mno cluster deployment is stuck
+
+=== Exercise 3: Identify why dell-snop1 cluster deployment is stuck
+
+----
 == Additional Resources
 
 * link:https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.11/html-single/clusters/index#ztp-troubleshooting_ztp-gitops[ZTP Troubleshooting Documentation]
