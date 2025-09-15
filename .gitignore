@@ -39,5 +39,11 @@ yarn*
 package*
 !package.json
 node_modules
-.firebaserc
 .firebase
+
+# Workshop materials and screenshots
+attendes/rc
+.firebase
+
+# Workshop materials and screenshots
+attendes/

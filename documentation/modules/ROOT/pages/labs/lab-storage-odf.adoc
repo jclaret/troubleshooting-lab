@@ -495,6 +495,26 @@ After activation, wait 5 minutes, then begin.
 
 Use the troubleshooting commands provided earlier to investigate the cluster behavior systematically.
 
+[NOTE]
+====
+In this deployment, ODF has been configured with 4 storage nodes, but only 3 nodes are actively running MON and OSD pods. The 4th node is available as a standby node for high availability but doesn't currently host any ODF services. This provides redundancy and allows for maintenance operations without affecting cluster availability.
+
+To verify the ODF cluster configuration:
+
+[source,bash]
+----
+# Check which nodes have ODF services running
+oc get pods -n openshift-storage -o wide | grep -E "(rook-ceph-mon|rook-ceph-osd)" | awk '{print $1, $7}' | sort
+
+# Verify MON pods are running on 3 nodes only
+oc get pods -n openshift-storage -l app=rook-ceph-mon -o wide
+
+# Verify OSD pods are running on 3 nodes only  
+oc get pods -n openshift-storage -l app=rook-ceph-osd -o wide
+----
+====
+
+
 .Click to reveal the solution
 [%collapsible]
 ====
