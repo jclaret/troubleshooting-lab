@@ -501,7 +501,9 @@ In this deployment, ODF has been configured with 4 storage nodes, but only 3 nod
 
 To verify the ODF cluster configuration:
 
-[source,bash]
+[.lines_space]
+[.console-input]
+[source,bash, subs="+macros,+attributes"]
 ----
 # Check which nodes have ODF services running
 oc get pods -n openshift-storage -o wide | grep -E "(rook-ceph-mon|rook-ceph-osd)" | awk '{print $1, $7}' | sort
